@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Video → Knowledge Pipeline</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --card: #1a1d27;
+      --border: #2a2f3a;
+      --text: #e8eaed;
+      --muted: #9aa0a6;
+      --accent: #7c9cff;
+      --accent-hover: #9bb3ff;
+      --success: #3dd68c;
+      --error: #ff6b6b;
+      --warn: #ffc14d;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+    .wrap {
+      max-width: 720px;
+      margin: 0 auto;
+      padding: 2.5rem 1.25rem 4rem;
+    }
+    h1 {
+      font-size: 1.75rem;
+      font-weight: 700;
+      margin: 0 0 0.35rem;
+      letter-spacing: -0.02em;
+    }
+    .sub {
+      color: var(--muted);
+      margin-bottom: 2rem;
+      font-size: 0.95rem;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.25rem;
+    }
+    label {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      margin-bottom: 0.4rem;
+    }
+    input[type="url"],
+    input[type="text"],
+    input[type="file"] {
+      width: 100%;
+      padding: 0.7rem 0.9rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: #12151c;
+      color: var(--text);
+      font-size: 0.95rem;
+      margin-bottom: 1rem;
+    }
+    input[type="file"] {
+      padding: 0.5rem;
+    }
+    input:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+    .tabs {
+      display: flex;
+      gap: 0.5rem;
+      margin-bottom: 1.25rem;
+    }
+    .tab {
+      flex: 1;
+      padding: 0.6rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.9rem;
+    }
+    .tab.active {
+      background: var(--accent);
+      color: #0f1117;
+      border-color: var(--accent);
+    }
+    button.primary {
+      width: 100%;
+      padding: 0.85rem;
+      border: none;
+      border-radius: 8px;
+      background: var(--accent);
+      color: #0f1117;
+      font-weight: 700;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button.primary:hover:not(:disabled) {
+      background: var(--accent-hover);
+    }
+    button.primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .progress-wrap {
+      display: none;
+      margin-top: 1.25rem;
+    }
+    .progress-wrap.visible { display: block; }
+    .bar-bg {
+      height: 8px;
+      background: #12151c;
+      border-radius: 4px;
+      overflow: hidden;
+      margin: 0.75rem 0;
+    }
+    .bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent), #a78bfa);
+      border-radius: 4px;
+      transition: width 0.35s ease;
+    }
+    .status-line {
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+    .status-line strong { color: var(--text); }
+    .artifacts {
+      display: none;
+      margin-top: 1rem;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .artifacts.visible { display: flex; }
+    .artifacts a {
+      display: inline-block;
+      padding: 0.45rem 0.85rem;
+      border-radius: 6px;
+      background: #12151c;
+      border: 1px solid var(--border);
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.85rem;
+      font-weight: 600;
+    }
+    .artifacts a:hover { border-color: var(--accent); }
+    .error {
+      display: none;
+      margin-top: 1rem;
+      padding: 0.75rem 1rem;
+      background: rgba(255, 107, 107, 0.12);
+      border: 1px solid var(--error);
+      border-radius: 8px;
+      color: var(--error);
+      font-size: 0.9rem;
+    }
+    .error.visible { display: block; }
+    .job-id {
+      font-family: ui-monospace, monospace;
+      font-size: 0.75rem;
+      color: var(--muted);
+      margin-top: 0.5rem;
+    }
+    footer {
+      margin-top: 2.5rem;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.8rem;
+    }
+    footer a { color: var(--accent); }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Video → Knowledge</h1>
+    <p class="sub">Turn technical lectures into structured notes, Anki decks &amp; PDFs.</p>
+
+    <div class="card">
+      <div class="tabs">
+        <button class="tab active" data-tab="url" type="button">YouTube URL</button>
+        <button class="tab" data-tab="file" type="button">Upload file</button>
+      </div>
+
+      <div id="panel-url">
+        <label for="url">Video URL</label>
+        <input type="url" id="url" placeholder="https://www.youtube.com/watch?v=..." />
+      </div>
+
+      <div id="panel-file" style="display:none">
+        <label for="file">Video / audio file (≤ 1 GB)</label>
+        <input type="file" id="file" accept="video/*,audio/*" />
+      </div>
+
+      <label for="title">Title (optional)</label>
+      <input type="text" id="title" placeholder="Lecture title" />
+
+      <button class="primary" id="submit" type="button">Start processing</button>
+
+      <div class="progress-wrap" id="progress">
+        <div class="status-line"><strong id="status-text">Queued</strong> — <span id="status-msg">Waiting…</span></div>
+        <div class="bar-bg"><div class="bar" id="bar"></div></div>
+        <div class="job-id" id="job-id"></div>
+        <div class="artifacts" id="artifacts"></div>
+        <div class="error" id="error"></div>
+      </div>
+    </div>
+
+    <footer>
+      API docs: <a href="/docs" target="_blank">/docs</a>
+    </footer>
+  </div>
+
+  <script>
+    const tabs = document.querySelectorAll(".tab");
+    const panelUrl = document.getElementById("panel-url");
+    const panelFile = document.getElementById("panel-file");
+    let mode = "url";
+
+    tabs.forEach((t) => {
+      t.addEventListener("click", () => {
+        tabs.forEach((x) => x.classList.remove("active"));
+        t.classList.add("active");
+        mode = t.dataset.tab;
+        panelUrl.style.display = mode === "url" ? "block" : "none";
+        panelFile.style.display = mode === "file" ? "block" : "none";
+      });
+    });
+
+    const submitBtn = document.getElementById("submit");
+    const progressEl = document.getElementById("progress");
+    const bar = document.getElementById("bar");
+    const statusText = document.getElementById("status-text");
+    const statusMsg = document.getElementById("status-msg");
+    const jobIdEl = document.getElementById("job-id");
+    const artifactsEl = document.getElementById("artifacts");
+    const errorEl = document.getElementById("error");
+
+    let es = null;
+
+    submitBtn.addEventListener("click", async () => {
+      errorEl.classList.remove("visible");
+      artifactsEl.classList.remove("visible");
+      artifactsEl.innerHTML = "";
+      submitBtn.disabled = true;
+      progressEl.classList.add("visible");
+      bar.style.width = "2%";
+      statusText.textContent = "Submitting";
+      statusMsg.textContent = "Sending job…";
+
+      try {
+        let res;
+        if (mode === "url") {
+          const url = document.getElementById("url").value.trim();
+          if (!url) throw new Error("Please enter a YouTube URL");
+          const title = document.getElementById("title").value.trim() || null;
+          res = await fetch("/api/v1/jobs/url", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ url, title }),
+          });
+        } else {
+          const file = document.getElementById("file").files[0];
+          if (!file) throw new Error("Please choose a file");
+          const fd = new FormData();
+          fd.append("file", file);
+          const title = document.getElementById("title").value.trim();
+          if (title) fd.append("title", title);
+          res = await fetch("/api/v1/jobs/upload", { method: "POST", body: fd });
+        }
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.detail || res.statusText || "Request failed");
+        }
+        const data = await res.json();
+        jobIdEl.textContent = "Job: " + data.job_id;
+        listenProgress(data.job_id);
+      } catch (e) {
+        showError(e.message || String(e));
+        submitBtn.disabled = false;
+      }
+    });
+
+    function listenProgress(jobId) {
+      if (es) es.close();
+      es = new EventSource("/api/v1/jobs/" + jobId + "/progress");
+      es.addEventListener("update", (ev) => {
+        try {
+          const d = JSON.parse(ev.data);
+          statusText.textContent = d.status || "…";
+          statusMsg.textContent = d.message || "";
+          if (typeof d.progress === "number") bar.style.width = d.progress + "%";
+
+          if (d.status === "COMPLETED") {
+            es.close();
+            submitBtn.disabled = false;
+            bar.style.width = "100%";
+            showArtifacts(jobId, d.result);
+          } else if (d.status === "FAILED") {
+            es.close();
+            submitBtn.disabled = false;
+            showError(d.error || d.message || "Pipeline failed");
+          }
+        } catch (_) {}
+      });
+      es.onerror = () => {
+        // Fallback poll once
+        fetch("/api/v1/jobs/" + jobId + "/status")
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.status === "COMPLETED") {
+              statusText.textContent = "COMPLETED";
+              bar.style.width = "100%";
+              showArtifacts(jobId, d.result);
+              submitBtn.disabled = false;
+              if (es) es.close();
+            } else if (d.status === "FAILED") {
+              showError(d.error || d.message);
+              submitBtn.disabled = false;
+              if (es) es.close();
+            }
+          })
+          .catch(() => {});
+      };
+    }
+
+    function showArtifacts(jobId, result) {
+      artifactsEl.innerHTML = "";
+      const names = ["markdown", "transcript", "pdf", "anki"];
+      const labels = { markdown: "Notes (.md)", transcript: "Transcript", pdf: "PDF", anki: "Anki deck" };
+      names.forEach((n) => {
+        const a = document.createElement("a");
+        a.href = "/api/v1/jobs/" + jobId + "/artifacts/" + n;
+        a.textContent = labels[n];
+        a.target = "_blank";
+        artifactsEl.appendChild(a);
+      });
+      artifactsEl.classList.add("visible");
+    }
+
+    function showError(msg) {
+      errorEl.textContent = msg;
+      errorEl.classList.add("visible");
+    }
+  </script>
+</body>
+</html>
