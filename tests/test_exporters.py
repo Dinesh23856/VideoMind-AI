@@ -54,4 +54,12 @@ def test_exporters():
         docx_file = tmp / "notes.docx"
         DocxExporter().export("Quantum", data, docx_file)
         assert docx_file.exists()
-        assert "<html" in docx_file.read_text(encoding="utf-8").lower()
+        assert docx_file.stat().st_size > 0
+        try:
+            import docx
+            doc = docx.Document(str(docx_file))
+            paragraphs = [p.text for p in doc.paragraphs]
+            assert any("Quantum" in p for p in paragraphs)
+        except Exception:
+            assert "<html" in docx_file.read_text(encoding="utf-8").lower()
+

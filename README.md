@@ -6,84 +6,87 @@
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![Celery](https://img.shields.io/badge/Celery-5.4+-37814A.svg)](https://docs.celeryq.dev/)
-[![Typst](https://img.shields.io/badge/Typst-0.12+-239dad.svg)](https://typst.app/)
+[![Alembic](https://img.shields.io/badge/Alembic-1.13+-red.svg)](https://alembic.sqlalchemy.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 ---
 
-## 🌟 Capabilities & Features
+## ⚡ Key Capabilities & Verified Architecture
 
-- **Multimodal Video Intelligence**: Differential frame sampling extracts slides, architecture diagrams, code screenshots, and terminal sessions without processing redundant frames.
-- **Audio Intelligence & Speaker Diarization**: Faster-Whisper with Silero VAD, conversational turn clustering, and speaker role inference (`Professor`, `Student`, `Host`, `Guest`).
+- **Multimodal Video Intelligence**: Differential frame sampling extracts slides, architecture diagrams, code screenshots, and terminal sessions without redundant frame processing.
+- **Audio Intelligence & Speaker Diarization**: Faster-Whisper with VAD segmentation, conversational turn clustering, and speaker role inference (`Professor`, `Student`, `Host`, `Guest`).
 - **Structured Knowledge Graph**: Automatic extraction of technical concepts, definitions, mathematical LaTeX derivations, code blocks, and directional relationships (`USES`, `DEPENDS_ON`, `PREREQUISITE_OF`).
 - **Fact Verification & Evidence Grounding**: Validates factual claims against spoken transcript evidence (`SUPPORTED`, `UNVERIFIED`) with 0% hallucinated citations.
-- **Hybrid Search Engine**: Reciprocal Rank Fusion (RRF) combining BM25 exact lexical search, dense sublinear TF-IDF vector embeddings, and concept expansion with clickable timestamp intervals.
-- **Socratic AI Tutor**: 8 pedagogical modes (`Beginner`, `Intermediate`, `Advanced`, `Expert`, `Interview`, `Exam`, `Research`, `Developer`) with progressive hints and code evaluation.
+- **Hybrid Search Engine**: Reciprocal Rank Fusion (RRF) combining BM25 exact lexical search, sparse TF-IDF retrieval, and concept expansion with clickable timestamp intervals.
+- **Socratic AI Tutor**: 8 pedagogical modes (`Beginner`, `Intermediate`, `Advanced`, `Expert`, `Interview`, `Exam`, `Research`, `Developer`) with progressive 3-tier hint ladders.
+- **Course & Syllabus Synthesis**: Automated generation of multi-unit courses and prerequisite learning paths from indexed video libraries.
+- **Multi-Tenant Security & RBAC**: JWT HS256 (RFC 7518 256-bit compliant) authentication, role-based access (`STUDENT`, `TEACHER`, `ADMIN`), and tenant resource isolation.
 - **Multi-Format Publication Exports**:
-  - Publication-ready PDF via **Typst**
+  - Publication-ready Word document (`.docx`) with OpenXML styles
   - Anki flashcard deck (`.apkg`) with Cloze deletions, math, and code
   - Timestamped Subtitles (`.srt`, `.vtt`)
-  - Markdown notes (`.md`)
-  - Word document (`.docx`)
+  - Executive Markdown notes (`.md`)
   - Structured Knowledge AST (`.json`)
   - Direct Notion workspace sync
-- **Enterprise Security**: SSRF IP-range blocking, prompt-injection delimiter fencing, and sliding-window rate limiting.
+- **Enterprise Security**: SSRF IP-range & metadata blocking, prompt-injection delimiter fencing, and traversal-protected storage.
+
+See [PRODUCTION_REALITY_MATRIX.md](PRODUCTION_REALITY_MATRIX.md) for transparent classification of all components (`VERIFIED`, `FALLBACK`, `NOT VERIFIED`).
 
 ---
 
-## 🏗️ Architecture Overview
+## 🏗 System Architecture
 
 ```
                     VIDEO / URL / FILE UPLOAD
-                               │
-                               ▼
-                ┌─────────────────────────────┐
-                │     Intelligent Ingestion   │
-                │  (yt-dlp captions / ffmpeg) │
-                └──────────────┬──────────────┘
+                                │
+                                ▼
+                ┌──────────────────────────────┐
+                │     Intelligent Ingestion    │
+                │  (yt-dlp captions / ffmpeg)  │
+                └──────────────┬───────────────┘
                                │
         ┌──────────────────────┴──────────────────────┐
         ▼                                             ▼
-┌─────────────────┐                           ┌─────────────────┐
-│ Audio Pipeline  │                           │ Visual Pipeline │
-│ (16kHz PCM WAV) │                           │(Keyframe Engine)│
-└────────┬────────┘                           └────────┬────────┘
+┌──────────────────┐                           ┌──────────────────┐
+│  Audio Pipeline  │                           │ Visual Pipeline  │
+│ (16kHz PCM WAV)  │                           │(Keyframe Engine) │
+└────────┬─────────┘                           └────────┬─────────┘
         ▼                                             ▼
-┌─────────────────┐                           ┌─────────────────┐
-│ ASR & Diarizer  │                           │ Scene Cuts, OCR │
-│ (Groq/Whisper)  │                           │ Diagram & Code  │
-└────────┬────────┘                           └────────┬────────┘
+┌──────────────────┐                           ┌──────────────────┐
+│ ASR & Diarizer   │                           │ Scene Cuts, OCR  │
+│ (Groq/Whisper)   │                           │ Diagram & Code   │
+└────────┬─────────┘                           └────────┬─────────┘
         │                                             │
         └──────────────────────┬──────────────────────┘
                                ▼
-                ┌─────────────────────────────┐
-                │     Multimodal Timeline     │
-                │ (Visual Refs + Transcripts) │
-                └──────────────┬──────────────┘
+                ┌──────────────────────────────┐
+                │     Multimodal Timeline      │
+                │ (Visual Refs + Transcripts)  │
+                └──────────────┬───────────────┘
                                ▼
-                ┌─────────────────────────────┐
-                │    Knowledge Extraction     │
-                │ Concepts, Formulas, Code    │
-                └──────────────┬──────────────┘
+                ┌──────────────────────────────┐
+                │    Knowledge Extraction      │
+                │  Concepts, Formulas, Code    │
+                └──────────────┬───────────────┘
                                │
         ┌──────────────────────┼──────────────────────┐
         ▼                      ▼                      ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│ Fact Verifier   │    │ Knowledge Graph │    │  Hybrid Search  │
-│ (Evidence Check)│    │ (Cytoscape/DAG) │    │  (BM25 + Dense) │
-└────────┬────────┘    └────────┬────────┘    └────────┬────────┘
+┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
+│  Fact Verifier   │   │ Knowledge Graph  │   │  Hybrid Search   │
+│ (Evidence Check) │   │  (Cytoscape/DAG) │   │  (BM25 + Dense)  │
+└────────┬─────────┘   └────────┬─────────┘   └────────┬─────────┘
         │                      │                      │
         └──────────────────────┼──────────────────────┘
                                ▼
-                ┌─────────────────────────────┐
-                │   AI Knowledge & Tutoring   │
-                │   8-Mode Socratic Engine    │
-                └──────────────┬──────────────┘
+                ┌──────────────────────────────┐
+                │   AI Knowledge & Tutoring    │
+                │   8-Mode Socratic Engine     │
+                └──────────────┬───────────────┘
                                ▼
-                ┌─────────────────────────────┐
-                │    Artifact Compilation     │
-                │ Anki (.apkg), PDF, MD, DOCX │
-                └─────────────────────────────┘
+                ┌──────────────────────────────┐
+                │    Artifact Compilation      │
+                │ Anki (.apkg), DOCX, MD, VTT  │
+                └──────────────────────────────┘
 ```
 
 ---
@@ -93,7 +96,7 @@
 ### 1. Prerequisites
 - Python 3.11+
 - `ffmpeg` on system `$PATH`
-- Redis (local or managed cloud instance)
+- Redis (local or cloud instance)
 - API keys: OpenAI, Anthropic, or Google; optional Groq/Deepgram for serverless ASR
 
 ### 2. Setup & Installation
@@ -110,15 +113,18 @@ source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env
 # Configure your API keys in .env
+
+# Apply database schema migrations
+alembic upgrade head
 ```
 
 ### 3. Run with Docker Compose (Recommended)
 ```bash
 docker compose up --build
 ```
-- Web UI: http://localhost:8000
-- OpenAPI Docs: http://localhost:8000/docs
-- Prometheus Metrics: http://localhost:8000/metrics
+- Web UI & SPA Dashboard: http://localhost:8000
+- Interactive Swagger OpenAPI Docs: http://localhost:8000/docs
+- Prometheus Telemetry Metrics: http://localhost:8000/metrics
 
 ---
 
@@ -136,32 +142,38 @@ python scripts/cli.py search "attention mechanism"
 # Ask the Socratic AI Tutor
 python scripts/cli.py ask "Why does multi-head attention project into subspaces?" --mode Developer
 
-# Export artifacts to target format (pdf, anki, srt, vtt, docx, json)
-python scripts/cli.py export ./output/<job_id> --format pdf
+# Export artifacts to target format (docx, anki, srt, vtt, md, json)
+python scripts/cli.py export ./output/<job_id> --format docx
 ```
 
 ---
 
 ## 🧪 Comprehensive Verification & Testing
 
-Run the full automated test suite:
+### 1. Full Automated Pytest Suite (38 tests)
 ```bash
 pytest tests/ -v
 ```
+Validates:
+- Real live HTTP server probing over TCP (`/health`, `/live`, `/ready`, `/metrics`, `/docs`)
+- RBAC authentication lifecycle & tenant resource isolation (403 Forbidden)
+- RAG grounding across 4 question types (Supported, Unsupported refusal, etc.)
+- AI Tutor 8 pedagogical modes & 3-tier progressive hint scaffolding
+- SSRF loopback, cloud metadata & path traversal sanitization
+- OpenXML `.docx` byte validation, Anki, WebVTT, and SRT exports
+- Local and S3 storage fail-fast behavior
 
-All 22 unit & integration tests validate:
-- Ingestion & VTT/SRT subtitle harvesting
-- Speaker diarization & role inference
-- Knowledge graph DAG queries & cycle handling
-- Fact verification & evidence grounding
-- Hybrid search (BM25 + dense vector RRF)
-- SSRF prevention & Prompt injection defense
-- Artifact exporters (Anki, Typst PDF, SRT, VTT, DOCX)
+### 2. Automated Production Reality Gates (9 Gates)
+```bash
+python scripts/verify_production.py
+```
+Executes all 9 live integration reality gates and outputs `scripts/reality_gates_report.json`.
 
 ---
 
-## 📜 Documentation
+## 📖 Documentation
 
+- [Production Reality Matrix](PRODUCTION_REALITY_MATRIX.md)
 - [System Architecture](docs/architecture.md)
 - [REST API Reference](docs/api.md)
 - [Security & Threat Mitigation](docs/security.md)

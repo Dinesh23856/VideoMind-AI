@@ -99,7 +99,6 @@ class S3StorageProvider(StorageProvider):
     def __init__(self):
         settings = get_settings()
         self.bucket = settings.s3_bucket
-        self.fallback = LocalStorageProvider()
         self._s3_client = None
 
         if self.bucket and settings.aws_access_key_id and settings.aws_secret_access_key:
@@ -111,50 +110,51 @@ class S3StorageProvider(StorageProvider):
                     aws_access_key_id=settings.aws_access_key_id,
                     aws_secret_access_key=settings.aws_secret_access_key,
                 )
-            except Exception:
-                self._s3_client = None
+            except Exception as exc:
+                raise RuntimeError(f"Failed to initialize configured S3 client: {exc}") from exc
 
     def save(self, key: str, data: bytes) -> str:
-        if self._s3_client and self.bucket:
-            self._s3_client.put_object(Bucket=self.bucket, Key=key, Body=data)
-            return f"s3://{self.bucket}/{key}"
-        return self.fallback.save(key, data)
+        if not self._s3_client or not self.bucket:
+            raise RuntimeError("S3 storage is not properly configured.")
+        self._s3_client.put_object(Bucket=self.bucket, Key=key, Body=data)
+        return f"s3://{self.bucket}/{key}"
 
     def save_file(self, key: str, local_path: str) -> str:
-        if self._s3_client and self.bucket:
-            self._s3_client.upload_file(local_path, self.bucket, key)
-            return f"s3://{self.bucket}/{key}"
-        return self.fallback.save_file(key, local_path)
+        if not self._s3_client or not self.bucket:
+            raise RuntimeError("S3 storage is not properly configured.")
+        self._s3_client.upload_file(local_path, self.bucket, key)
+        return f"s3://{self.bucket}/{key}"
 
     def read(self, key: str) -> bytes:
-        if self._s3_client and self.bucket:
-            resp = self._s3_client.get_object(Bucket=self.bucket, Key=key)
-            return resp["Body"].read()
-        return self.fallback.read(key)
+        if not self._s3_client or not self.bucket:
+            raise RuntimeError("S3 storage is not properly configured.")
+        resp = self._s3_client.get_object(Bucket=self.bucket, Key=key)
+        return resp["Body"].read()
 
     def exists(self, key: str) -> bool:
-        if self._s3_client and self.bucket:
-            try:
-                self._s3_client.head_object(Bucket=self.bucket, Key=key)
-                return True
-            except Exception:
-                return False
-        return self.fallback.exists(key)
+        if not self._s3_client or not self.bucket:
+            raise RuntimeError("S3 storage is not properly configured.")
+        try:
+            self._s3_client.head_object(Bucket=self.bucket, Key=key)
+            return True
+        except Exception:
+            return False
 
     def delete(self, key: str) -> bool:
-        if self._s3_client and self.bucket:
-            self._s3_client.delete_object(Bucket=self.bucket, Key=key)
-            return True
-        return self.fallback.delete(key)
+        if not self._s3_client or not self.bucket:
+            raise RuntimeError("S3 storage is not properly configured.")
+        self._s3_client.delete_object(Bucket=self.bucket, Key=key)
+        return True
 
     def get_url(self, key: str, expiry_seconds: int = 3600) -> str:
-        if self._s3_client and self.bucket:
-            return self._s3_client.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": self.bucket, "Key": key},
-                ExpiresIn=expiry_seconds,
-            )
-        return self.fallback.get_url(key, expiry_seconds)
+        if not self._s3_client or not self.bucket:
+            raise RuntimeError("S3 storage is not properly configured.")
+        return self._s3_client.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": self.bucket, "Key": key},
+            ExpiresIn=expiry_seconds,
+        )
+
 
 
 def get_storage_provider() -> StorageProvider:

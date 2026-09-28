@@ -38,13 +38,32 @@ class InMemoryVectorStore(BaseVectorStore):
     Requires no external C++ binaries, works out of the box anywhere, and supports persistence.
     """
 
+    STOPWORDS = {
+        "a", "about", "above", "after", "again", "against", "all", "am", "an", "and",
+        "any", "are", "aren't", "as", "at", "be", "because", "been", "before", "being",
+        "below", "between", "both", "but", "by", "can", "can't", "cannot", "could",
+        "did", "do", "does", "doing", "down", "during", "each", "few", "for", "from",
+        "further", "had", "has", "have", "having", "he", "her", "here", "hers", "herself",
+        "him", "himself", "his", "how", "i", "if", "in", "into", "is", "it", "its", "itself",
+        "let's", "me", "more", "most", "my", "myself", "no", "nor", "not", "of", "off", "on",
+        "once", "only", "or", "other", "ought", "our", "ours", "ourselves", "out", "over",
+        "own", "same", "she", "should", "so", "some", "such", "than", "that", "the", "their",
+        "theirs", "them", "themselves", "then", "there", "these", "they", "this", "those",
+        "through", "to", "too", "under", "until", "up", "very", "was", "we", "were", "what",
+        "when", "where", "which", "while", "who", "whom", "why", "with", "would", "you",
+        "your", "yours", "yourself", "yourselves", "using", "uses"
+    }
+
     def __init__(self):
         self.documents: Dict[str, Dict[str, Any]] = {}  # id -> {text, metadata, vec}
         self.idf: Dict[str, float] = {}
         self.doc_count: int = 0
 
     def _tokenize(self, text: str) -> List[str]:
-        return [w.lower() for w in re.findall(r"\b[a-zA-Z0-9_]{2,}\b", text)]
+        words = [w.lower() for w in re.findall(r"\b[a-zA-Z0-9_]{2,}\b", text)]
+        filtered = [w for w in words if w not in self.STOPWORDS]
+        return filtered if filtered else words
+
 
     def _compute_tf(self, tokens: List[str]) -> Dict[str, float]:
         tf: Dict[str, float] = {}
@@ -116,8 +135,9 @@ class InMemoryVectorStore(BaseVectorStore):
 
             doc_norm = math.sqrt(sum((v * self.idf.get(t, 1.0)) ** 2 for t, v in doc_tf.items())) or 1.0
             cosine = dot / (q_norm * doc_norm)
-            if cosine > 0.05:
+            if cosine > 0.12:
                 scores.append((doc["metadata"], round(cosine, 4)))
+
 
         scores.sort(key=lambda x: x[1], reverse=True)
         return scores[:k]

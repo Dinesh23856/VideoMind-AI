@@ -46,8 +46,9 @@ class AITutorEngine:
             return self._evaluate_student_solution(user_message, student_solution, lecture_evidence, mode)
 
         # Handle requests for hints without spoiling answers
-        if any(w in user_message.lower() for w in ("hint", "help me", "stuck", "clue")):
+        if any(w in user_message.lower() for w in ("hint", "help", "stuck", "clue", "nudge", "guidance")):
             return self._provide_progressive_hint(user_message, lecture_evidence, context_hints_given, mode)
+
 
         # Generate pedagogical response tailored to tutor mode
         reply = self._craft_mode_response(user_message, lecture_evidence, mode)

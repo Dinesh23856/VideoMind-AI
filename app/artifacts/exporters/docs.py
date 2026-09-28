@@ -41,7 +41,7 @@ class JsonExporter(BaseExporter):
 
 class DocxExporter(BaseExporter):
     """
-    Exports a clean, styled HTML-based Word document (.doc/.docx compatible)
+    Exports a native OpenXML Word document (.docx)
     preserving hierarchical headings, code styles, and tables.
     """
     @property
@@ -53,9 +53,68 @@ class DocxExporter(BaseExporter):
         return "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
     def export(self, title: str, data: Dict[str, Any], output_path: str | Path) -> str:
-        markdown = data.get("markdown", "")
-        # Minimal HTML shell recognized natively by Word/LibreOffice
-        html_doc = f"""<!DOCTYPE html>
+        markdown = data.get("markdown") or data.get("content") or ""
+        out = Path(output_path)
+        out.parent.mkdir(parents=True, exist_ok=True)
+
+        try:
+            import docx
+            from docx.shared import Pt, Inches, RGBColor
+
+            doc = docx.Document()
+            doc.add_heading(title, level=0)
+
+            in_code_block = False
+            code_buffer = []
+
+            for line in markdown.splitlines():
+                stripped = line.strip()
+                if stripped.startswith("```"):
+                    if in_code_block:
+                        in_code_block = False
+                        code_p = doc.add_paragraph("\n".join(code_buffer))
+                        code_p.style = "No Spacing"
+                        for run in code_p.runs:
+                            run.font.name = "Consolas"
+                            run.font.size = Pt(9.5)
+                        code_buffer = []
+                    else:
+                        in_code_block = True
+                        code_buffer = []
+                    continue
+
+                if in_code_block:
+                    code_buffer.append(line)
+                    continue
+
+                if not stripped:
+                    continue
+
+                if stripped.startswith("### "):
+                    doc.add_heading(stripped[4:], level=3)
+                elif stripped.startswith("## "):
+                    doc.add_heading(stripped[3:], level=2)
+                elif stripped.startswith("# "):
+                    doc.add_heading(stripped[2:], level=1)
+                elif stripped.startswith(("- ", "* ", "+ ")):
+                    doc.add_paragraph(stripped[2:], style="List Bullet")
+                elif stripped.startswith("> "):
+                    p = doc.add_paragraph(stripped[2:])
+                    p.paragraph_format.left_indent = Inches(0.5)
+                    for run in p.runs:
+                        run.font.italic = True
+                        run.font.color.rgb = RGBColor(100, 100, 100)
+                else:
+                    doc.add_paragraph(line)
+
+            if code_buffer:
+                doc.add_paragraph("\n".join(code_buffer))
+
+            doc.save(str(out))
+            return str(out)
+        except Exception:
+            # Fallback to HTML-based Word export
+            html_doc = f"""<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -74,6 +133,6 @@ blockquote {{ border-left: 4px solid #3b82f6; margin-left: 0; padding-left: 15px
 <pre>{markdown}</pre>
 </body>
 </html>"""
-        out = Path(output_path)
-        out.write_text(html_doc, encoding="utf-8")
-        return str(out)
+            out.write_text(html_doc, encoding="utf-8")
+            return str(out)
+

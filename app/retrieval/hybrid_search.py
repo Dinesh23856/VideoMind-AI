@@ -110,6 +110,10 @@ class HybridSearchEngine:
             item["key"]: r + 1 for r, item in enumerate(bm25_hits)
         }
 
+        if not vector_rank and not bm25_rank:
+            return []
+
+
         # 4. Reciprocal Rank Fusion (RRF)
         all_keys = set(vector_rank.keys()).union(set(bm25_rank.keys()))
         rrf_scores: List[tuple[str, float]] = []
@@ -156,9 +160,14 @@ class HybridSearchEngine:
         k1: float = 1.5,
         b: float = 0.75,
     ) -> List[Dict[str, Any]]:
-        query_words = [w.lower() for w in re.findall(r"\w+", query)]
+        from .vector_store import InMemoryVectorStore
+        raw_words = [w.lower() for w in re.findall(r"\w+", query)]
+        query_words = [w for w in raw_words if w not in InMemoryVectorStore.STOPWORDS]
+        if not query_words:
+            query_words = raw_words
         if not query_words:
             return []
+
 
         doc_freq: Dict[str, int] = {}
         for doc in self.segments_corpus.values():

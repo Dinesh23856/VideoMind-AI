@@ -26,3 +26,18 @@ def test_jobs_url_invalid_input():
 def test_artifacts_nonexistent_job():
     response = client.get("/api/v1/jobs/fake-id-12345/artifacts/markdown")
     assert response.status_code == 404
+
+
+def test_spa_direct_refresh_routes():
+    routes = ["/dashboard", "/video/vid_123", "/search", "/tutor", "/knowledge", "/settings"]
+    for route in routes:
+        res = client.get(route)
+        assert res.status_code == 200
+        assert "<html" in res.text.lower()
+        assert "VideoMind AI" in res.text
+
+
+def test_api_nonexistent_returns_404():
+    res = client.get("/api/v1/nonexistent_route")
+    assert res.status_code == 404
+

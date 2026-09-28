@@ -9,9 +9,10 @@ SUSPICIOUS_PROMPT_PATTERNS = [
     r"ignore\s+(?:all\s+)?(?:previous|prior)\s+instructions",
     r"disregard\s+(?:all\s+)?(?:previous|prior)\s+rules",
     r"you\s+are\s+now\s+(?:a|an)\s+",
-    r"system\s+prompt\s*:",
+    r"system\s+(?:prompt|instructions)\s*:",
     r"reveal\s+(?:your\s+)?(?:system\s+prompt|secret\s+key|api\s+key)",
     r"print\s+(?:the\s+)?(?:system\s+instructions|system\s+prompt)",
+    r"forget\s+(?:all\s+)?(?:previous|prior|everything)(?:\s+(?:instructions|rules|above))?",
     r"forget\s+(?:everything|all)\s+above",
 ]
 

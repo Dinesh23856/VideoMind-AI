@@ -1,4 +1,4 @@
-"""FastAPI Production Gateway: SSE progress, Hybrid Search, AI Tutor, Knowledge Graph, and Auth."""
+"""FastAPI Production Gateway: SSE progress, Hybrid Search, AI Tutor, Knowledge Graph, RBAC & Resource Isolation."""
 
 from __future__ import annotations
 
@@ -42,9 +42,17 @@ from app.core.errors import (
     VideoMindException,
 )
 from app.database.session import SessionLocal, get_db, init_db
-from app.database.models import BookmarkRecord, CourseRecord, JobRecord, User, VideoRecord
-from app.domain.models import TutorMode, UserRole
-from app.learning.course import CourseGenerator
+from app.database.models import (
+    BookmarkRecord,
+    CourseRecord,
+    JobRecord,
+    KnowledgeEntityRecord,
+    TranscriptSegmentRecord,
+    User,
+    VideoRecord,
+)
+from app.domain.models import LearnerProfile, TutorMode, UserRole
+from app.learning.course import CourseGenerator, LearningPathEngine
 from app.observability.metrics import get_metrics_collector
 from app.orchestration.tasks import process_video_job
 from app.rag.engine import RAGEngine
@@ -52,11 +60,16 @@ from app.retrieval.hybrid_search import HybridSearchEngine
 from app.security.auth import (
     create_access_token,
     decode_access_token,
+    get_current_user,
+    get_optional_current_user,
     hash_password,
+    require_role,
     verify_password,
+    verify_resource_ownership,
 )
 from app.security.rate_limiter import get_rate_limiter
 from app.security.sanitizer import sanitize_filename, validate_external_url
+from app.storage.provider import get_storage_provider
 from app.tutor.engine import AITutorEngine
 
 logger = logging.getLogger("VideoMindAPI")
@@ -82,24 +95,33 @@ async def lifespan(app: FastAPI):
 
     # 2. Redis connection pool
     try:
-        redis_pool = aioredis.from_url(settings.redis_url, decode_responses=True)
+        redis_pool = aioredis.from_url(
+            settings.redis_url,
+            socket_connect_timeout=0.5,
+            socket_timeout=0.5,
+            decode_responses=True,
+        )
     except Exception as exc:
         logger.warning(f"Could not connect to Redis pool on startup: {exc}")
 
     yield
 
     if redis_pool:
-        await redis_pool.close()
+        try:
+            await redis_pool.aclose()
+        except Exception:
+            pass
+
 
 
 app = FastAPI(
     title="VideoMind-AI (Intelligent Video-to-Knowledge OS)",
-    description="Full multimodal video understanding, speech intelligence, Knowledge Graph, hybrid search, and AI Tutor.",
+    description="Full multimodal video understanding, speech intelligence, Knowledge Graph, hybrid search, RBAC, and AI Tutor.",
     version="2.0.0",
     lifespan=lifespan,
 )
 
-# CORS
+# CORS configuration
 _cors = list(settings.cors_origins) if settings.cors_origins else ["*"]
 if "*" not in _cors and settings.debug:
     _cors.append("*")
@@ -137,7 +159,6 @@ async def observability_and_security_middleware(request: Request, call_next):
             media_type="application/json",
         )
 
-    start_time = time.time()
     try:
         response: Response = await call_next(request)
         response.headers["X-Request-ID"] = req_id
@@ -160,7 +181,7 @@ async def observability_and_security_middleware(request: Request, call_next):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Request / Response Models
+# Request / Response Schemas
 # ─────────────────────────────────────────────────────────────────────────────
 
 class UrlJobRequest(BaseModel):
@@ -202,6 +223,50 @@ class BookmarkRequest(BaseModel):
     category: str = "Note"
 
 
+class CourseCreateRequest(BaseModel):
+    title: str
+    description: str = ""
+    video_ids: List[str] = []
+
+
+class LearningPathRequest(BaseModel):
+    mastered_concepts: List[str] = []
+    weak_concepts: List[str] = []
+    video_id: Optional[str] = None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Helper Access Checkers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _get_and_check_job_access(job_id: str, current_user: Optional[Dict[str, Any]]) -> Optional[JobRecord]:
+    with SessionLocal() as db:
+        job = db.query(JobRecord).filter(JobRecord.id == job_id).first()
+        if job and job.user_id:
+            if not current_user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Authentication required to access this job.",
+                )
+            verify_resource_ownership(job.user_id, current_user, "job")
+        return job
+
+
+def _get_and_check_video_access(video_id: str, current_user: Optional[Dict[str, Any]]) -> VideoRecord:
+    with SessionLocal() as db:
+        video = db.query(VideoRecord).filter(VideoRecord.id == video_id).first()
+        if not video:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+        if video.user_id:
+            if not current_user:
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Authentication required to access this video.",
+                )
+            verify_resource_ownership(video.user_id, current_user, "video")
+        return video
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Core & Health Endpoints
 # ─────────────────────────────────────────────────────────────────────────────
@@ -239,11 +304,14 @@ async def prometheus_metrics():
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Pipeline Job Submission & Progress (100% Backwards Compatible)
+# Pipeline Job Submission & Progress (100% Backwards Compatible + RBAC)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.post("/api/v1/jobs/url", response_model=JobAccepted, status_code=status.HTTP_202_ACCEPTED)
-async def submit_url_job(body: UrlJobRequest):
+async def submit_url_job(
+    body: UrlJobRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
     """Ingests a video URL (YouTube, Vimeo, etc.), validates against SSRF, and enqueues Celery pipeline."""
     try:
         clean_url = validate_external_url(body.url)
@@ -253,12 +321,31 @@ async def submit_url_job(body: UrlJobRequest):
         raise HTTPException(status_code=422, detail=str(val_err))
 
     job_id = str(uuid.uuid4())
+    user_id = current_user["id"] if current_user else None
+
+    # Pre-register job in database
+    try:
+        with SessionLocal() as db:
+            initial_job = JobRecord(
+                id=job_id,
+                user_id=user_id,
+                status="ACCEPTED",
+                current_stage="QUEUED",
+                progress=0.0,
+                message="Job queued for processing",
+            )
+            db.add(initial_job)
+            db.commit()
+    except Exception as db_err:
+        logger.warning(f"Could not persist initial JobRecord: {db_err}")
+
     try:
         process_video_job.delay(
             job_id=job_id,
             source=clean_url,
             source_type="url",
             title=body.title,
+            user_id=user_id,
         )
     except Exception as exc:
         logger.error(f"Failed to enqueue Celery task for job {job_id}: {exc}")
@@ -271,6 +358,7 @@ async def submit_url_job(body: UrlJobRequest):
 async def submit_upload_job(
     file: UploadFile = File(...),
     title: Optional[str] = Form(None),
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
 ):
     """Accepts an uploaded video/audio file (<= 1 GB) and dispatches processing."""
     if not file.filename:
@@ -280,6 +368,7 @@ async def submit_upload_job(
     dest_dir = Path(settings.scratch_dir) / "uploads"
     dest_dir.mkdir(parents=True, exist_ok=True)
     job_id = str(uuid.uuid4())
+    user_id = current_user["id"] if current_user else None
 
     safe_name = sanitize_filename(file.filename)
     dest = dest_dir / f"{job_id}_{safe_name}"
@@ -295,11 +384,27 @@ async def submit_upload_job(
             out.write(chunk)
 
     try:
+        with SessionLocal() as db:
+            initial_job = JobRecord(
+                id=job_id,
+                user_id=user_id,
+                status="ACCEPTED",
+                current_stage="QUEUED",
+                progress=0.0,
+                message="File uploaded, job queued",
+            )
+            db.add(initial_job)
+            db.commit()
+    except Exception as db_err:
+        logger.warning(f"Could not persist initial JobRecord: {db_err}")
+
+    try:
         process_video_job.delay(
             job_id=job_id,
             source=str(dest),
             source_type="file",
             title=title or file.filename,
+            user_id=user_id,
         )
     except Exception as exc:
         logger.error(f"Failed to enqueue Celery task for upload {job_id}: {exc}")
@@ -318,9 +423,48 @@ async def get_uploaded_media(job_id: str):
     return FileResponse(candidates[0], filename=candidates[0].name)
 
 
+@app.get("/api/v1/jobs")
+async def list_jobs(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """List jobs belonging to the current user (or all jobs for ADMIN)."""
+    with SessionLocal() as db:
+        query = db.query(JobRecord)
+        if current_user.get("role") != UserRole.ADMIN.value:
+            query = query.filter(JobRecord.user_id == current_user["id"])
+        total = query.count()
+        jobs = query.order_by(JobRecord.created_at.desc()).offset(offset).limit(limit).all()
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "jobs": [
+                {
+                    "id": j.id,
+                    "video_id": j.video_id,
+                    "status": j.status,
+                    "current_stage": j.current_stage,
+                    "progress": j.progress,
+                    "message": j.message,
+                    "created_at": j.created_at,
+                    "updated_at": j.updated_at,
+                }
+                for j in jobs
+            ],
+        }
+
+
 @app.get("/api/v1/jobs/{job_id}/progress")
-async def stream_job_progress(job_id: str, request: Request):
-    """SSE progress stream with auto-reconnection and state catch-up."""
+async def stream_job_progress(
+    job_id: str,
+    request: Request,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    """SSE progress stream with auto-reconnection and resource isolation."""
+    _get_and_check_job_access(job_id, current_user)
+
     if redis_pool is None:
         raise HTTPException(status_code=503, detail="Redis connection pool unavailable")
 
@@ -344,7 +488,7 @@ async def stream_job_progress(job_id: str, request: Request):
                     yield f"event: update\ndata: {data}\n\n"
                     try:
                         parsed = json.loads(data)
-                        if parsed.get("status") in ("COMPLETED", "FAILED"):
+                        if parsed.get("status") in ("COMPLETED", "FAILED", "CANCELLED"):
                             break
                     except Exception:
                         pass
@@ -368,19 +512,69 @@ async def stream_job_progress(job_id: str, request: Request):
 
 
 @app.get("/api/v1/jobs/{job_id}/status")
-async def get_job_status(job_id: str):
-    """Polling fallback for job status."""
-    if redis_pool is None:
-        raise HTTPException(status_code=503, detail="Redis connection pool unavailable")
-    cached = await redis_pool.get(f"job:{job_id}:status")
-    if not cached:
-        raise HTTPException(status_code=404, detail="Job not found or expired")
-    return json.loads(cached)
+async def get_job_status(
+    job_id: str,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    """Status polling with resource ownership enforcement."""
+    job_rec = _get_and_check_job_access(job_id, current_user)
+
+    if redis_pool is not None:
+        try:
+            cached = await redis_pool.get(f"job:{job_id}:status")
+            if cached:
+                return json.loads(cached)
+        except Exception:
+            pass
+
+    if job_rec:
+        return {
+            "job_id": job_rec.id,
+            "status": job_rec.status,
+            "progress": job_rec.progress,
+            "message": job_rec.message,
+            "error": job_rec.error,
+        }
+
+    raise HTTPException(status_code=404, detail="Job not found or expired")
+
+
+@app.post("/api/v1/jobs/{job_id}/cancel")
+async def cancel_job(
+    job_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Cancels a pending or running processing job."""
+    with SessionLocal() as db:
+        job = db.query(JobRecord).filter(JobRecord.id == job_id).first()
+        if not job:
+            raise HTTPException(status_code=404, detail="Job not found")
+        verify_resource_ownership(job.user_id, current_user, "job")
+
+        job.status = "CANCELLED"
+        job.message = "Job cancelled by user."
+        db.commit()
+
+    cancel_msg = json.dumps({"job_id": job_id, "status": "CANCELLED", "progress": 0, "message": "Cancelled by user"})
+    if redis_pool:
+        try:
+            await redis_pool.set(f"job:{job_id}:status", cancel_msg, ex=86400)
+            await redis_pool.publish(f"channel:job:{job_id}", cancel_msg)
+        except Exception:
+            pass
+
+    return {"status": "CANCELLED", "job_id": job_id}
 
 
 @app.get("/api/v1/jobs/{job_id}/artifacts/{name}")
-async def download_artifact(job_id: str, name: str):
-    """Downloads generated learning artifacts: markdown, transcript, pdf, anki, srt, vtt, json, docx."""
+async def download_artifact(
+    job_id: str,
+    name: str,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    """Downloads generated learning artifacts with resource ownership protection."""
+    _get_and_check_job_access(job_id, current_user)
+
     base = Path(settings.scratch_dir) / job_id
     mapping = {
         "markdown": "notes.md",
@@ -409,6 +603,107 @@ async def download_artifact(job_id: str, name: str):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Video Resource Endpoints (CRUD & Isolation)
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/v1/videos")
+async def list_videos(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """List videos owned by the authenticated user (or all videos for ADMIN)."""
+    with SessionLocal() as db:
+        query = db.query(VideoRecord)
+        if current_user.get("role") != UserRole.ADMIN.value:
+            query = query.filter(VideoRecord.user_id == current_user["id"])
+        total = query.count()
+        videos = query.order_by(VideoRecord.created_at.desc()).offset(offset).limit(limit).all()
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "videos": [
+                {
+                    "id": v.id,
+                    "title": v.title,
+                    "source_type": v.source_type,
+                    "source_url": v.source_url,
+                    "duration_seconds": v.duration_seconds,
+                    "language": v.language,
+                    "created_at": v.created_at,
+                }
+                for v in videos
+            ],
+        }
+
+
+@app.get("/api/v1/videos/{video_id}")
+async def get_video(
+    video_id: str,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    """Retrieve video metadata with ownership check."""
+    video = _get_and_check_video_access(video_id, current_user)
+    return {
+        "id": video.id,
+        "title": video.title,
+        "source_type": video.source_type,
+        "source_url": video.source_url,
+        "duration_seconds": video.duration_seconds,
+        "language": video.language,
+        "created_at": video.created_at,
+    }
+
+
+@app.delete("/api/v1/videos/{video_id}")
+async def delete_video(
+    video_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Deletes a video and cascading child records."""
+    with SessionLocal() as db:
+        video = db.query(VideoRecord).filter(VideoRecord.id == video_id).first()
+        if not video:
+            raise HTTPException(status_code=404, detail="Video not found")
+        verify_resource_ownership(video.user_id, current_user, "video")
+        db.delete(video)
+        db.commit()
+        return {"status": "deleted", "video_id": video_id}
+
+
+@app.get("/api/v1/videos/{video_id}/transcript")
+async def get_video_transcript(
+    video_id: str,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    """Retrieves full transcript segments for an authorized video."""
+    _get_and_check_video_access(video_id, current_user)
+    with SessionLocal() as db:
+        segments = (
+            db.query(TranscriptSegmentRecord)
+            .filter(TranscriptSegmentRecord.video_id == video_id)
+            .order_by(TranscriptSegmentRecord.start_time.asc())
+            .all()
+        )
+        return {
+            "video_id": video_id,
+            "segments_count": len(segments),
+            "segments": [
+                {
+                    "start": s.start_time,
+                    "end": s.end_time,
+                    "speaker": s.speaker,
+                    "speaker_role": s.speaker_role,
+                    "text": s.text,
+                    "confidence": s.confidence,
+                }
+                for s in segments
+            ],
+        }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Search, RAG & AI Tutor Endpoints
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -417,15 +712,24 @@ async def search_lectures(
     q: str = Query(..., description="Query terms or technical concept"),
     video_id: Optional[str] = Query(None, description="Optional video ID filter"),
     k: int = Query(5, ge=1, le=20),
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
 ):
-    """Hybrid search (BM25 + Dense Vector + Knowledge Graph) returning timestamped citations."""
+    """Hybrid search (BM25 + TF-IDF Vector + Knowledge Graph) returning timestamped citations."""
+    if video_id:
+        _get_and_check_video_access(video_id, current_user)
     results = global_search_engine.search(query=q, k=k, video_filter=video_id)
     return {"query": q, "results_count": len(results), "results": results}
 
 
 @app.post("/api/v1/tutor/chat")
-async def tutor_chat(body: TutorChatRequest):
+async def tutor_chat(
+    body: TutorChatRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
     """Interactive Socratic AI Tutor with 8 pedagogical modes and grounded citations."""
+    if body.video_id:
+        _get_and_check_video_access(body.video_id, current_user)
+
     res = global_tutor_engine.interact(
         user_message=body.message,
         mode=body.mode,
@@ -437,8 +741,13 @@ async def tutor_chat(body: TutorChatRequest):
 
 
 @app.get("/api/v1/knowledge/graph/{job_id}")
-async def get_knowledge_graph(job_id: str):
-    """Returns Cytoscape.js compatible graph elements for interactive knowledge visualization."""
+async def get_knowledge_graph(
+    job_id: str,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    """Returns Cytoscape.js compatible graph elements with resource ownership protection."""
+    _get_and_check_job_access(job_id, current_user)
+
     base = Path(settings.scratch_dir) / job_id
     knowledge_path = base / "knowledge.json"
     if not knowledge_path.exists():
@@ -463,8 +772,13 @@ async def get_knowledge_graph(job_id: str):
 
 
 @app.get("/api/v1/knowledge/chapters/{job_id}")
-async def get_chapters(job_id: str):
-    """Returns timestamped chapters for the video workspace."""
+async def get_chapters(
+    job_id: str,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    """Returns timestamped chapters for the video workspace with access verification."""
+    _get_and_check_job_access(job_id, current_user)
+
     base = Path(settings.scratch_dir) / job_id
     knowledge_path = base / "knowledge.json"
     if not knowledge_path.exists():
@@ -477,7 +791,150 @@ async def get_chapters(job_id: str):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# Auth, Bookmarks & Course Compilation
+# Courses & Adaptive Learning Path Engine
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.post("/api/v1/courses", status_code=status.HTTP_201_CREATED)
+async def create_course(
+    body: CourseCreateRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Compiles multiple video lectures into a cohesive, structured course."""
+    with SessionLocal() as db:
+        videos_meta = []
+        for vid_id in body.video_ids:
+            v = db.query(VideoRecord).filter(VideoRecord.id == vid_id).first()
+            if not v:
+                raise HTTPException(status_code=404, detail=f"Video '{vid_id}' not found")
+            verify_resource_ownership(v.user_id, current_user, "video")
+            videos_meta.append({
+                "id": v.id,
+                "title": v.title,
+                "duration": v.duration_seconds,
+                "concepts": [],
+                "summary": f"Lecture: {v.title}",
+            })
+
+        course_obj = CourseGenerator().compile_course(
+            title=body.title,
+            description=body.description,
+            videos=videos_meta,
+        )
+
+        course_rec = CourseRecord(
+            id=course_obj.id,
+            user_id=current_user["id"],
+            title=course_obj.title,
+            description=course_obj.description,
+            difficulty=course_obj.difficulty,
+            estimated_duration_hours=course_obj.estimated_duration_hours,
+            structure_json=json.dumps(course_obj.model_dump(), default=str),
+        )
+        db.add(course_rec)
+        db.commit()
+        return course_obj.model_dump()
+
+
+@app.get("/api/v1/courses")
+async def list_courses(
+    limit: int = Query(20, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """List courses owned by current user (or all courses for ADMIN)."""
+    with SessionLocal() as db:
+        query = db.query(CourseRecord)
+        if current_user.get("role") != UserRole.ADMIN.value:
+            query = query.filter(CourseRecord.user_id == current_user["id"])
+        total = query.count()
+        courses = query.order_by(CourseRecord.created_at.desc()).offset(offset).limit(limit).all()
+        return {
+            "total": total,
+            "limit": limit,
+            "offset": offset,
+            "courses": [
+                {
+                    "id": c.id,
+                    "title": c.title,
+                    "description": c.description,
+                    "difficulty": c.difficulty,
+                    "estimated_duration_hours": c.estimated_duration_hours,
+                    "created_at": c.created_at,
+                }
+                for c in courses
+            ],
+        }
+
+
+@app.get("/api/v1/courses/{course_id}")
+async def get_course(
+    course_id: str,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    """Retrieve full course details with ownership protection."""
+    with SessionLocal() as db:
+        course = db.query(CourseRecord).filter(CourseRecord.id == course_id).first()
+        if not course:
+            raise HTTPException(status_code=404, detail="Course not found")
+        if course.user_id:
+            if not current_user:
+                raise HTTPException(status_code=401, detail="Authentication required")
+            verify_resource_ownership(course.user_id, current_user, "course")
+
+        return {
+            "id": course.id,
+            "title": course.title,
+            "description": course.description,
+            "difficulty": course.difficulty,
+            "estimated_duration_hours": course.estimated_duration_hours,
+            "created_at": course.created_at,
+            "structure": json.loads(course.structure_json),
+        }
+
+
+@app.delete("/api/v1/courses/{course_id}")
+async def delete_course(
+    course_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Deletes a course owned by current user."""
+    with SessionLocal() as db:
+        course = db.query(CourseRecord).filter(CourseRecord.id == course_id).first()
+        if not course:
+            raise HTTPException(status_code=404, detail="Course not found")
+        verify_resource_ownership(course.user_id, current_user, "course")
+        db.delete(course)
+        db.commit()
+        return {"status": "deleted", "course_id": course_id}
+
+
+@app.post("/api/v1/learning/path")
+async def generate_learning_path(
+    body: LearningPathRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    """Computes personalized, adaptive learning paths based on mastery and weakness."""
+    profile = LearnerProfile(
+        user_id=current_user["id"] if current_user else "guest",
+        mastered_concepts=body.mastered_concepts,
+        weak_concepts=body.weak_concepts,
+    )
+    # Available concepts
+    concepts = []
+    if body.video_id:
+        _get_and_check_video_access(body.video_id, current_user)
+        with SessionLocal() as db:
+            entities = db.query(KnowledgeEntityRecord).filter(KnowledgeEntityRecord.video_id == body.video_id).all()
+            from app.domain.models import ConceptNode
+            for e in entities:
+                concepts.append(ConceptNode(id=e.id, name=e.name, definition=e.definition or "", importance=e.importance))
+
+    path = LearningPathEngine().generate_personalized_path(profile, concepts)
+    return {"user_id": profile.user_id, "path": path}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Auth & Bookmarks
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.post("/api/v1/auth/register", status_code=status.HTTP_201_CREATED)
@@ -497,7 +954,7 @@ async def register(body: RegisterRequest):
         db.add(user)
         db.commit()
         token = create_access_token(user.id, role=user.role)
-        return {"user_id": user.id, "email": user.email, "token": token}
+        return {"user_id": user.id, "email": user.email, "role": user.role, "token": token}
 
 
 @app.post("/api/v1/auth/login")
@@ -511,20 +968,24 @@ async def login(body: LoginRequest):
         return {"user_id": user.id, "email": user.email, "role": user.role, "token": token}
 
 
+@app.get("/api/v1/auth/me")
+async def get_me(current_user: Dict[str, Any] = Depends(get_current_user)):
+    """Returns the authenticated user's profile."""
+    return current_user
+
+
 @app.post("/api/v1/bookmarks")
-async def create_bookmark(body: BookmarkRequest, authorization: Optional[str] = Header(None)):
-    user_id = "guest_user"
-    if authorization and authorization.startswith("Bearer "):
-        try:
-            payload = decode_access_token(authorization[7:])
-            user_id = payload.get("sub", user_id)
-        except Exception:
-            pass
+async def create_bookmark(
+    body: BookmarkRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Creates a bookmark tied strictly to the authenticated user."""
+    _get_and_check_video_access(body.video_id, current_user)
 
     with SessionLocal() as db:
         bm = BookmarkRecord(
             id=f"bm_{uuid.uuid4().hex[:8]}",
-            user_id=user_id,
+            user_id=current_user["id"],
             video_id=body.video_id,
             timestamp=body.timestamp,
             title=body.title,
@@ -537,9 +998,23 @@ async def create_bookmark(body: BookmarkRequest, authorization: Optional[str] = 
 
 
 @app.get("/api/v1/bookmarks/{video_id}")
-async def get_video_bookmarks(video_id: str):
+async def get_video_bookmarks(
+    video_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Returns only the authenticated user's bookmarks for a given video."""
+    _get_and_check_video_access(video_id, current_user)
+
     with SessionLocal() as db:
-        bms = db.query(BookmarkRecord).filter(BookmarkRecord.video_id == video_id).all()
+        bms = (
+            db.query(BookmarkRecord)
+            .filter(
+                BookmarkRecord.video_id == video_id,
+                BookmarkRecord.user_id == current_user["id"],
+            )
+            .order_by(BookmarkRecord.timestamp.asc())
+            .all()
+        )
         return {
             "bookmarks": [
                 {
@@ -553,6 +1028,43 @@ async def get_video_bookmarks(video_id: str):
             ]
         }
 
+
+@app.delete("/api/v1/bookmarks/{bookmark_id}")
+async def delete_bookmark(
+    bookmark_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    """Deletes an authorized bookmark."""
+    with SessionLocal() as db:
+        bm = db.query(BookmarkRecord).filter(BookmarkRecord.id == bookmark_id).first()
+        if not bm:
+            raise HTTPException(status_code=404, detail="Bookmark not found")
+        verify_resource_ownership(bm.user_id, current_user, "bookmark")
+        db.delete(bm)
+        db.commit()
+        return {"status": "deleted", "bookmark_id": bookmark_id}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Cloud / Local Storage Access
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/v1/storage/{file_path:path}")
+async def download_storage_file(
+    file_path: str,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    """Direct storage retrieval with path sanitization."""
+    storage = get_storage_provider()
+    if not storage.exists(file_path):
+        raise HTTPException(status_code=404, detail="Storage object not found")
+    data = storage.read(file_path)
+    return Response(content=data, media_type="application/octet-stream")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SPA Catch-all Routing
+# ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/{full_path:path}", response_class=HTMLResponse)
 async def spa_catch_all(full_path: str):

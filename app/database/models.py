@@ -31,6 +31,8 @@ class User(Base):
 
     videos = relationship("VideoRecord", back_populates="owner")
     bookmarks = relationship("BookmarkRecord", back_populates="user")
+    jobs = relationship("JobRecord", back_populates="owner")
+    courses = relationship("CourseRecord", back_populates="owner")
 
 
 class VideoRecord(Base):
@@ -56,6 +58,7 @@ class JobRecord(Base):
     __tablename__ = "jobs"
 
     id = Column(String(64), primary_key=True, index=True)
+    user_id = Column(String(64), ForeignKey("users.id"), nullable=True, index=True)
     video_id = Column(String(64), ForeignKey("videos.id"), nullable=True, index=True)
     status = Column(String(32), default="CREATED", index=True, nullable=False)
     current_stage = Column(String(64), default="CREATED", nullable=False)
@@ -66,8 +69,10 @@ class JobRecord(Base):
     created_at = Column(Float, default=time.time, nullable=False)
     updated_at = Column(Float, default=time.time, onupdate=time.time, nullable=False)
 
+    owner = relationship("User", back_populates="jobs")
     video = relationship("VideoRecord", back_populates="jobs")
     checkpoints = relationship("StageCheckpointRecord", back_populates="job", cascade="all, delete-orphan")
+
 
 
 class StageCheckpointRecord(Base):
@@ -167,12 +172,16 @@ class CourseRecord(Base):
     __tablename__ = "courses"
 
     id = Column(String(64), primary_key=True, index=True)
+    user_id = Column(String(64), ForeignKey("users.id"), nullable=True, index=True)
     title = Column(String(512), nullable=False)
     description = Column(Text, nullable=True)
     difficulty = Column(String(32), default="Intermediate")
     estimated_duration_hours = Column(Float, default=1.0)
     structure_json = Column(Text, nullable=False)
     created_at = Column(Float, default=time.time, nullable=False)
+
+    owner = relationship("User", back_populates="courses")
+
 
 
 class AuditLogRecord(Base):

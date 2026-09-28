@@ -109,7 +109,9 @@ def process_video_job(
     source_type: str = "url",  # "url" | "file"
     title: Optional[str] = None,
     output_dir: Optional[str] = None,
+    user_id: Optional[str] = None,
 ) -> Dict[str, Any]:
+
     """
     Complete Multimodal Video-to-Knowledge OS Pipeline:
       1. Ingestion: YouTube captions or high-throughput audio/video download
@@ -137,11 +139,34 @@ def process_video_job(
     }
 
     try:
+        with SessionLocal() as db:
+            job_rec = db.query(JobRecord).filter(JobRecord.id == job_id).first()
+            if not job_rec:
+                job_rec = JobRecord(
+                    id=job_id,
+                    user_id=user_id,
+                    status="RUNNING",
+                    current_stage="INITIALIZING",
+                    progress=2.0,
+                    message="Pipeline initiated",
+                )
+                db.add(job_rec)
+            else:
+                job_rec.status = "RUNNING"
+                if user_id:
+                    job_rec.user_id = user_id
+                job_rec.progress = 2.0
+            db.commit()
+    except Exception as db_init_err:
+        logger.warning(f"Could not initialize DB JobRecord: {db_init_err}")
+
+    try:
         _publish(job_id, {"status": "STARTED", "progress": 2, "message": "Pipeline initiated"})
         _publish(job_id, {"status": "INGESTING", "progress": 8, "message": "Ingesting media stream"})
 
         raw_segments: List[Dict[str, Any]] = []
         meta_title = title or "Lecture"
+
         media_video_file: Optional[str] = None
 
         with temporary_media_workspace() as scratch:
@@ -350,6 +375,7 @@ def process_video_job(
                     if not video_rec:
                         video_rec = VideoRecord(
                             id=vid_id,
+                            user_id=user_id,
                             title=meta_title,
                             source_type=source_type,
                             source_url=source if source_type == "url" else None,
@@ -357,11 +383,15 @@ def process_video_job(
                         )
                         db.add(video_rec)
                         db.flush()
+                    else:
+                        if user_id and not video_rec.user_id:
+                            video_rec.user_id = user_id
 
                     job_rec = db.query(JobRecord).filter(JobRecord.id == job_id).first()
                     if not job_rec:
                         job_rec = JobRecord(
                             id=job_id,
+                            user_id=user_id,
                             video_id=video_rec.id,
                             status="COMPLETED",
                             current_stage="COMPLETED",
@@ -373,6 +403,8 @@ def process_video_job(
                         job_rec.status = "COMPLETED"
                         job_rec.progress = 100.0
                         job_rec.message = "Processing complete"
+                        if user_id and not job_rec.user_id:
+                            job_rec.user_id = user_id
 
                     db.commit()
             except Exception as db_err:
@@ -404,6 +436,18 @@ def process_video_job(
         result["status"] = "FAILED"
         result["error"] = str(exc)
         result["traceback"] = tb
+
+        try:
+            with SessionLocal() as db:
+                job_rec = db.query(JobRecord).filter(JobRecord.id == job_id).first()
+                if job_rec:
+                    job_rec.status = "FAILED"
+                    job_rec.error = str(exc)
+                    job_rec.message = f"Pipeline failed: {exc}"
+                    db.commit()
+        except Exception as db_err:
+            logger.warning(f"Could not record job failure in DB: {db_err}")
+
         _publish(
             job_id,
             {

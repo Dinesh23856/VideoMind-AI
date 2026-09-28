@@ -59,6 +59,8 @@ services:
         value: cpu
       - key: SECRET_KEY
         generateValue: true
+      - key: JWT_SECRET_KEY
+        generateValue: true
       - key: CORS_ORIGINS
         value: '["*"]'
 
@@ -118,6 +120,8 @@ services:
       - key: WHISPER_DEVICE
         value: cpu
       - key: SECRET_KEY
+        generateValue: true
+      - key: JWT_SECRET_KEY
         generateValue: true
 
   # ── Redis ───────────────────────────────────────────────────────────

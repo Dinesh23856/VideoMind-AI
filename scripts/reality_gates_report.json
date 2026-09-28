@@ -1,0 +1,73 @@
+{
+  "timestamp": "2026-09-28T18:09:56Z",
+  "status": "PASS",
+  "total_duration_seconds": 7.782,
+  "gates_evaluated": 9,
+  "gates_passed": 9,
+  "gates_failed": 0,
+  "details": [
+    {
+      "gate": 1,
+      "name": "Core Imports & Dependency Integrity",
+      "status": "PASS",
+      "duration_seconds": 3.788,
+      "details": "Imported core packages successfully: FastAPI 0.141.1, SQLAlchemy 2.1.1"
+    },
+    {
+      "gate": 2,
+      "name": "Database Schema & Migration Integrity",
+      "status": "PASS",
+      "duration_seconds": 0.702,
+      "details": "Database schema verified: Users=12, Videos=7, Jobs=7, Courses=3"
+    },
+    {
+      "gate": 3,
+      "name": "RBAC Authentication & Resource Isolation",
+      "status": "PASS",
+      "duration_seconds": 0.246,
+      "details": "RBAC hashing, token lifecycle, cross-user isolation (403), and admin bypass verified."
+    },
+    {
+      "gate": 4,
+      "name": "Hybrid RAG Grounding & Refusal Behavior",
+      "status": "PASS",
+      "duration_seconds": 0.043,
+      "details": "Verified RAG grounding: Supported query confidence=0.95, Unsupported query confidence=0.20"
+    },
+    {
+      "gate": 5,
+      "name": "AI Tutor 8 Modes & Scaffolding Ladder",
+      "status": "PASS",
+      "duration_seconds": 0.014,
+      "details": "Verified all 8 pedagogical modes and progressive hint generation."
+    },
+    {
+      "gate": 6,
+      "name": "Multimodal Exporters & Document Integrity",
+      "status": "PASS",
+      "duration_seconds": 0.936,
+      "details": "Verified OpenXML .docx (36648 bytes), Markdown, and WebVTT exports."
+    },
+    {
+      "gate": 7,
+      "name": "Storage Traversal Security & Provider Fail-Fast",
+      "status": "PASS",
+      "duration_seconds": 0.019,
+      "details": "Storage CRUD, directory traversal containment, and S3 fail-fast guard verified."
+    },
+    {
+      "gate": 8,
+      "name": "Live API Contract & Route Integrity",
+      "status": "PASS",
+      "duration_seconds": 2.031,
+      "details": "Probed live FastAPI routes: /health, /ready, /metrics, and SPA direct refresh (/dashboard)."
+    },
+    {
+      "gate": 9,
+      "name": "Security Defenses (SSRF, Traversal, Prompt Guard)",
+      "status": "PASS",
+      "duration_seconds": 0.003,
+      "details": "Verified SSRF boundary protection, path traversal sanitization, and prompt injection fencing."
+    }
+  ]
+}

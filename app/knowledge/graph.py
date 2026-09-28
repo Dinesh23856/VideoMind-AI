@@ -26,7 +26,26 @@ class KnowledgeGraph:
         if concept.id not in self.rev_adj:
             self.rev_adj[concept.id] = []
 
-    def add_edge(self, edge: RelationshipEdge) -> None:
+    add_node = add_concept
+
+    def add_edge(
+        self,
+        edge: RelationshipEdge | str,
+        target_id: Optional[str] = None,
+        relation_type: str = "RELATED_TO",
+        confidence: float = 1.0,
+    ) -> None:
+        if isinstance(edge, str):
+            if target_id is None:
+                raise ValueError("target_id must be provided when adding an edge by ID strings")
+            edge = RelationshipEdge(
+                source_id=edge,
+                target_id=target_id,
+                relation=getattr(KnowledgeEdgeType, relation_type, KnowledgeEdgeType.RELATED_TO),
+                confidence=confidence,
+            )
+
+
         if edge.source_id not in self.adj:
             self.adj[edge.source_id] = []
         self.adj[edge.source_id].append(edge)
@@ -34,6 +53,7 @@ class KnowledgeGraph:
         if edge.target_id not in self.rev_adj:
             self.rev_adj[edge.target_id] = []
         self.rev_adj[edge.target_id].append(edge)
+
 
     def get_concept_by_name(self, name: str) -> Optional[ConceptNode]:
         target = name.strip().lower()
