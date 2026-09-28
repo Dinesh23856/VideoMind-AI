@@ -1,41 +1,62 @@
-# Deploy to Render (step-by-step)
+# Deploy VideoMind-AI to Render (Step-by-Step)
 
-This project is ready for Render via Blueprint (`render.yaml`).
+This project is fully configured for Render via Infrastructure-as-Code Blueprint (`render.yaml`).
 
-## What gets deployed
+## Architecture on Render
 
-| Service | Type | Role |
-|---------|------|------|
-| `vtk-api` | Web | FastAPI + web UI |
-| `vtk-worker` | Background Worker | Celery pipeline jobs |
-| `vtk-redis` | Redis | Queue + progress pub/sub |
+```text
+User / Browser
+      │
+      ▼
+┌─────────────────────────────────┐
+│  vtk-api (FastAPI Web Service)  │
+│  - Serves Web UI & Docs         │
+│  - Enqueues Jobs to Redis       │
+│  - Streams SSE Progress         │
+└─────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────┐
+│  vtk-redis (Managed Redis)      │
+│  - Task Queue Broker            │
+│  - Real-time Pub/Sub Progress   │
+└─────────────────────────────────┘
+      │
+      ▼
+┌─────────────────────────────────┐
+│  vtk-worker (Celery Worker)     │
+│  - Captions / Audio Demux       │
+│  - Speech-to-Text (Groq/Deepgram│
+│  - LLM Synthesis                │
+│  - Anki / Typst PDF Generation  │
+└─────────────────────────────────┘
+```
 
-**ASR on Render uses Groq** (serverless Whisper) — no GPU required.
+**ASR on Render uses Groq or Deepgram** (serverless Whisper) — no expensive GPU instance needed.
 
 ---
 
-## 1. Get API keys
+## 1. Prerequisites & API Keys
 
 You need at least:
-
-1. **OpenAI** (or Anthropic / Google) → for structured notes  
+1. **OpenAI API Key** (or Anthropic / Google Gemini) for lecture distillation:
    https://platform.openai.com/api-keys
-
-2. **Groq** → for speech-to-text (cheap & fast)  
+2. **Groq API Key** (or Deepgram) for blazing-fast serverless speech-to-text:
    https://console.groq.com/keys
 
-Optional: Deepgram, Notion.
+Optional:
+- `DEEPGRAM_API_KEY`: For audio files > 25MB without compression
+- `NOTION_API_KEY` & `NOTION_PARENT_PAGE_ID`: For direct export into your Notion workspace
 
 ---
 
-## 2. Push code to GitHub
+## 2. Push Code to GitHub
 
 ```bash
-cd video-to-knowledge-pipeline
+cd VideoMind-AI
 git init
 git add .
-git commit -m "Video-to-Knowledge pipeline"
-# Create a new empty repo on GitHub, then:
+git commit -m "feat: complete VideoMind-AI pipeline"
 git remote add origin https://github.com/YOUR_USER/YOUR_REPO.git
 git branch -M main
 git push -u origin main
@@ -43,96 +64,42 @@ git push -u origin main
 
 ---
 
-## 3. Create Blueprint on Render
+## 3. Launch Render Blueprint
 
-1. Go to [https://dashboard.render.com](https://dashboard.render.com)
-2. **New** → **Blueprint**
-3. Connect the GitHub repo
-4. Render reads `render.yaml` and shows 3 services
-5. Click **Apply**
-
----
-
-## 4. Set secret environment variables
-
-In the Render dashboard, for **both** `vtk-api` and `vtk-worker`:
-
-| Key | Value |
-|-----|--------|
-| `OPENAI_API_KEY` | `sk-...` |
-| `GROQ_API_KEY` | your Groq key |
-
-(Optional) `ANTHROPIC_API_KEY`, `DEEPGRAM_API_KEY`, `NOTION_API_KEY`, `NOTION_PARENT_PAGE_ID`
-
-`sync: false` in `render.yaml` means you must enter these in the UI (they are not stored in git).
-
-Redis URLs are linked automatically from `vtk-redis`.
+1. Go to your [Render Dashboard](https://dashboard.render.com).
+2. Click **New +** → **Blueprint**.
+3. Connect your GitHub repository.
+4. Render automatically reads `render.yaml` and provisions all 3 services:
+   - `vtk-api`: FastAPI Web Service
+   - `vtk-worker`: Celery Background Worker
+   - `vtk-redis`: Redis Instance
+5. Click **Apply**.
 
 ---
 
-## 5. Wait for deploy
+## 4. Set Secret Environment Variables
 
-- First build takes several minutes (Docker + ffmpeg + Python deps)
-- Open the `vtk-api` URL (e.g. `https://vtk-api.onrender.com`)
-- You should see the web UI
-- Health: `https://vtk-api.onrender.com/health`
+In the Render dashboard, set the following environment variables on **both** `vtk-api` and `vtk-worker`:
 
----
+| Key | Value | Description |
+|:---|:---|:---|
+| `OPENAI_API_KEY` | `sk-...` | (Or `GOOGLE_API_KEY` / `ANTHROPIC_API_KEY`) |
+| `GROQ_API_KEY` | `gsk-...` | (Or `DEEPGRAM_API_KEY`) |
+| `LLM_PROVIDER` | `openai` | `openai`, `google`, or `anthropic` |
+| `ASR_PROVIDER` | `groq` | `groq`, `deepgram`, or `faster-whisper` |
 
-## 6. Use the app
-
-1. Paste a YouTube lecture URL (or upload a file)
-2. Click **Start processing**
-3. Watch live progress
-4. Download Markdown / PDF / Anki when complete
-
-API docs: `https://YOUR-SERVICE.onrender.com/docs`
+*(Note: Redis URLs are wired automatically by Render via the Blueprint property link).*
 
 ---
 
-## Cost tips (Render)
+## 5. Verify Health & Use the App
 
-| Plan | Notes |
-|------|--------|
-| Free Redis | Works for light use; may sleep |
-| Starter web + worker | Recommended minimum for real jobs |
-| ASR | Groq Whisper Turbo ≈ **$0.04 / audio hour** |
-| LLM | GPT-4o ≈ **$0.14–0.18** per 2-hour lecture |
+Once deployed:
+- Web Application: `https://vtk-api.onrender.com/`
+- Health Probe: `https://vtk-api.onrender.com/health`
+- Swagger OpenAPI Docs: `https://vtk-api.onrender.com/docs`
 
-Free web instances sleep after inactivity — first request after sleep is slow. Upgrade to paid for always-on.
-
----
-
-## Switch ASR to Deepgram
-
-In both services’ Environment:
-
-```
-ASR_PROVIDER=deepgram
-DEEPGRAM_API_KEY=...
-```
-
----
-
-## Troubleshooting
-
-| Problem | Fix |
-|---------|-----|
-| Worker not processing | Check worker logs; confirm `CELERY_BROKER_URL` matches Redis |
-| Groq 413 / payload too large | Pipeline auto-compresses audio; long videos may need Deepgram |
-| LLM errors | Verify `OPENAI_API_KEY` is set on **worker** as well as API |
-| Out of disk | Ephemeral `/tmp` is cleaned per job; avoid huge concurrent uploads on free tier |
-
----
-
-## Local test of production image
-
-```bash
-docker build -t vtk .
-docker run --rm -p 8000:8000 \
-  -e OPENAI_API_KEY=sk-... \
-  -e GROQ_API_KEY=gsk-... \
-  -e ASR_PROVIDER=groq \
-  -e REDIS_URL=redis://host.docker.internal:6379/0 \
-  vtk
-```
+1. Paste any YouTube lecture URL (or upload a local video/audio file).
+2. Click **Start processing**.
+3. Watch the real-time Server-Sent Events progress bar.
+4. Download your generated timestamped Markdown, Anki `.apkg` deck, and Typst PDF!

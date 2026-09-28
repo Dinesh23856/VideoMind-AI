@@ -70,9 +70,9 @@ def extract_anki_cards_from_markdown(md: str) -> List[Dict[str, str]]:
     Supports both Cloze and simple Front/Back patterns.
     """
     cards: List[Dict[str, str]] = []
-    # Locate section
+    # Locate section without letting dotall consume subsequent lines
     match = re.search(
-        r"(?:##+\s*Section A:.*Anki.*|##+\s*Anki Flashcards)(.*?)(?=##+\s*Section B:|##+\s*Conceptual Quiz|$)",
+        r"(?:##+\s*Section A:[^\n]*Anki[^\n]*|##+\s*Anki Flashcards[^\n]*)\n(.*?)(?=##+\s*Section B:|##+\s*Conceptual Quiz|$)",
         md,
         re.IGNORECASE | re.DOTALL,
     )
@@ -80,10 +80,12 @@ def extract_anki_cards_from_markdown(md: str) -> List[Dict[str, str]]:
         return cards
     section = match.group(1)
 
-    # Cloze style: {{c1::term}} ...
-    cloze_blocks = re.findall(r"(?:[-*]|\d+\.)\s*(.+?)(?=(?:[-*]|\d+\.)\s*|$)", section, re.DOTALL)
-    for block in cloze_blocks:
+    # Split section into item blocks using list markers at line beginnings
+    raw_blocks = re.split(r"(?m)^\s*(?:[-*]|\d+\.)\s+", section)
+    for block in raw_blocks:
         text = block.strip()
+        if not text:
+            continue
         if "{{c" in text:
             # Treat whole line as front (cloze), empty back (Anki handles cloze)
             cards.append({"front": text, "back": ""})

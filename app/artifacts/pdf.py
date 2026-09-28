@@ -1,7 +1,4 @@
-"""High-fidelity PDF generation via Typst (lightweight Rust typesetter)."""
-
-from __future__ import annotations
-
+import tempfile
 from pathlib import Path
 from typing import Optional
 
@@ -17,25 +14,21 @@ def compile_markdown_to_pdf(
     Wrap Markdown content in a modern Typst document and compile to PDF
     in single-digit milliseconds.
     """
-    header_title = title or "Data Science Lecture Notes"
-    # Typst can ingest raw Markdown via the markdown package, but for
-    # maximum control we embed a simple set of show rules and inject
-    # the content as a string that Typst will treat as markup.
-    # For production you may prefer a proper Markdown→Typst converter;
-    # this implementation keeps the dependency surface minimal.
+    header_title = (title or "Data Science Lecture Notes").replace('"', '\\"')
+    output_path = Path(output_pdf_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    # Escape for Typst string interpolation safety
-    safe_content = markdown_content.replace("\\", "\\\\").replace('"', '\\"')
+    with tempfile.TemporaryDirectory(prefix="typst_") as tmp_dir:
+        tmp_dir_path = Path(tmp_dir)
+        content_file = tmp_dir_path / "content.txt"
+        content_file.write_text(markdown_content, encoding="utf-8")
 
-    typst_template = f'''
+        typst_template = f'''
 #set page(
   paper: "a4",
   margin: (x: 2cm, y: 2.5cm),
   header: align(right)[#text(size: 9pt, fill: gray)[{header_title}]],
-  footer: [
-    #set text(size: 9pt, fill: gray)
-    #counter(page).display("1 of 1", both: true)
-  ]
+  footer: align(center)[#context text(size: 9pt, fill: gray)[#counter(page).display()]]
 )
 #set text(font: "Linux Libertine", size: 11pt, lang: "en")
 #set heading(numbering: "1.1")
@@ -47,17 +40,14 @@ def compile_markdown_to_pdf(
   stroke: 0.5pt + rgb("#e9ecef")
 )
 
-// Basic Markdown-ish rendering helpers
-#let md = ```
-{safe_content}
-```.text
-
-// For a production system replace the following with a proper
-// Markdown → Typst conversion step.  Here we simply emit the
-// raw text so the pipeline remains self-contained.
-#raw(md, block: true, lang: "markdown")
+#let body = read("content.txt")
+#raw(body, block: true)
 '''
+        typ_path = tmp_dir_path / "document.typ"
+        typ_path.write_text(typst_template, encoding="utf-8")
 
-    output = str(output_pdf_path)
-    typst.compile(typst_template, output=output)
-    return output
+        typst.compile(str(typ_path), output=str(output_path))
+
+    return str(output_path)
+
+

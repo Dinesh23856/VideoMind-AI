@@ -32,13 +32,26 @@ def demux_audio_to_wav(
     """
     Demux container (MP4/MKV/MOV/WEBM/...) to mono 16 kHz PCM 16-bit LE WAV.
     Bypasses video decoding entirely for speed and low memory use.
+    If the file is already a WAV and ffmpeg is unavailable, it is used directly.
     """
     if output_path is None:
         base, _ = os.path.splitext(input_path)
         output_path = f"{base}_16k_mono.wav"
 
+    ffmpeg_bin = shutil.which("ffmpeg")
+
+    # If it is already a WAV and ffmpeg is not installed or output path is input path
+    if input_path.lower().endswith(".wav"):
+        if not ffmpeg_bin or os.path.abspath(input_path) == os.path.abspath(output_path):
+            if os.path.abspath(input_path) != os.path.abspath(output_path):
+                shutil.copyfile(input_path, output_path)
+            return output_path
+
+    if not ffmpeg_bin:
+        raise RuntimeError("ffmpeg executable was not found on system PATH. Required to decode media containers.")
+
     cmd = [
-        "ffmpeg",
+        ffmpeg_bin,
         "-v",
         "error",
         "-y",
@@ -53,9 +66,17 @@ def demux_audio_to_wav(
         "1",
         output_path,
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
-    if result.returncode != 0:
-        raise RuntimeError(f"ffmpeg demux failed: {result.stderr.strip()}")
+    try:
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode != 0:
+            raise RuntimeError(f"ffmpeg demux failed: {result.stderr.strip()}")
+    except FileNotFoundError:
+        if input_path.lower().endswith(".wav"):
+            shutil.copyfile(input_path, output_path)
+            return output_path
+        raise RuntimeError("ffmpeg executable not found.")
+
     if not os.path.exists(output_path):
         raise RuntimeError("ffmpeg reported success but output WAV is missing")
     return output_path
+

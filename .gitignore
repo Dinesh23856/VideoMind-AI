@@ -36,3 +36,10 @@ celerybeat.pid
 # Logs
 *.log
 logs/
+
+# Database & Cache
+*.db
+*.sqlite
+*.sqlite3
+.pytest_cache/
+

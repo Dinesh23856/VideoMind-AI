@@ -2,361 +2,716 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Video → Knowledge Pipeline</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VideoMind AI — Video-to-Knowledge OS</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg: #0f1117;
-      --card: #1a1d27;
-      --border: #2a2f3a;
-      --text: #e8eaed;
-      --muted: #9aa0a6;
-      --accent: #7c9cff;
-      --accent-hover: #9bb3ff;
-      --success: #3dd68c;
-      --error: #ff6b6b;
-      --warn: #ffc14d;
+      --bg: #090b10;
+      --surface: #12151f;
+      --surface-elevated: #1a1e2c;
+      --border: #262c3e;
+      --text: #f0f3f8;
+      --muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #79c0ff;
+      --success: #3fb950;
+      --warning: #d29922;
+      --danger: #f85149;
+      --font: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      --mono: 'JetBrains Mono', monospace;
     }
-    * { box-sizing: border-box; }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, sans-serif;
       background: var(--bg);
       color: var(--text);
+      font-family: var(--font);
       min-height: 100vh;
-      line-height: 1.5;
+      display: flex;
+      flex-direction: column;
     }
-    .wrap {
-      max-width: 720px;
-      margin: 0 auto;
-      padding: 2.5rem 1.25rem 4rem;
+
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.85rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
-    h1 {
-      font-size: 1.75rem;
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
       font-weight: 700;
-      margin: 0 0 0.35rem;
+      font-size: 1.15rem;
       letter-spacing: -0.02em;
     }
-    .sub {
-      color: var(--muted);
-      margin-bottom: 2rem;
-      font-size: 0.95rem;
+    .brand-badge {
+      background: rgba(88, 166, 255, 0.15);
+      color: var(--accent);
+      padding: 0.2rem 0.5rem;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
     }
+
+    .nav-tabs {
+      display: flex;
+      gap: 0.5rem;
+    }
+    .nav-tab {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--muted);
+      padding: 0.5rem 0.9rem;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 0.85rem;
+      transition: all 0.15s;
+    }
+    .nav-tab:hover { color: var(--text); background: var(--surface-elevated); }
+    .nav-tab.active {
+      color: var(--text);
+      background: var(--surface-elevated);
+      border-color: var(--border);
+    }
+
+    main {
+      flex: 1;
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 1.5rem;
+    }
+
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* Ingestion & Processing Card */
     .card {
-      background: var(--card);
+      background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 12px;
       padding: 1.5rem;
-      margin-bottom: 1.25rem;
+      margin-bottom: 1.5rem;
     }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1.5rem;
+    }
+
+    @media (max-width: 900px) {
+      .grid-2 { grid-template-columns: 1fr; }
+    }
+
     label {
       display: block;
       font-size: 0.8rem;
       font-weight: 600;
       color: var(--muted);
       text-transform: uppercase;
-      letter-spacing: 0.04em;
-      margin-bottom: 0.4rem;
+      letter-spacing: 0.05em;
+      margin-bottom: 0.5rem;
     }
-    input[type="url"],
-    input[type="text"],
-    input[type="file"] {
+
+    input[type="text"], input[type="file"], select, textarea {
       width: 100%;
-      padding: 0.7rem 0.9rem;
-      border-radius: 8px;
+      background: var(--bg);
       border: 1px solid var(--border);
-      background: #12151c;
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
       color: var(--text);
+      font-family: inherit;
       font-size: 0.95rem;
       margin-bottom: 1rem;
     }
-    input[type="file"] {
-      padding: 0.5rem;
-    }
-    input:focus {
+    input:focus, select:focus, textarea:focus {
       outline: none;
       border-color: var(--accent);
     }
-    .tabs {
-      display: flex;
-      gap: 0.5rem;
-      margin-bottom: 1.25rem;
-    }
-    .tab {
-      flex: 1;
-      padding: 0.6rem;
-      border-radius: 8px;
-      border: 1px solid var(--border);
-      background: transparent;
-      color: var(--muted);
-      cursor: pointer;
-      font-weight: 600;
-      font-size: 0.9rem;
-    }
-    .tab.active {
+
+    button.btn-primary {
       background: var(--accent);
-      color: #0f1117;
-      border-color: var(--accent);
-    }
-    button.primary {
-      width: 100%;
-      padding: 0.85rem;
+      color: #090b10;
       border: none;
       border-radius: 8px;
-      background: var(--accent);
-      color: #0f1117;
+      padding: 0.75rem 1.5rem;
       font-weight: 700;
-      font-size: 1rem;
+      font-size: 0.95rem;
       cursor: pointer;
       transition: background 0.15s;
+      width: 100%;
     }
-    button.primary:hover:not(:disabled) {
-      background: var(--accent-hover);
-    }
-    button.primary:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    .progress-wrap {
-      display: none;
+    button.btn-primary:hover:not(:disabled) { background: var(--accent-hover); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    /* Pipeline Progress Tracker */
+    .pipeline-tracker {
       margin-top: 1.25rem;
+      display: none;
     }
-    .progress-wrap.visible { display: block; }
-    .bar-bg {
+    .pipeline-tracker.visible { display: block; }
+
+    .progress-bar-bg {
+      background: var(--bg);
       height: 8px;
-      background: #12151c;
       border-radius: 4px;
       overflow: hidden;
-      margin: 0.75rem 0;
+      margin-bottom: 0.75rem;
     }
-    .bar {
+    .progress-bar-fill {
+      background: var(--accent);
       height: 100%;
       width: 0%;
-      background: linear-gradient(90deg, var(--accent), #a78bfa);
-      border-radius: 4px;
-      transition: width 0.35s ease;
+      transition: width 0.3s ease;
     }
-    .status-line {
-      font-size: 0.9rem;
-      color: var(--muted);
-    }
-    .status-line strong { color: var(--text); }
-    .artifacts {
-      display: none;
-      margin-top: 1rem;
+
+    .pipeline-stages {
+      display: flex;
       gap: 0.5rem;
       flex-wrap: wrap;
+      margin-top: 1rem;
     }
-    .artifacts.visible { display: flex; }
-    .artifacts a {
-      display: inline-block;
-      padding: 0.45rem 0.85rem;
-      border-radius: 6px;
-      background: #12151c;
+    .stage-pill {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 12px;
+      background: var(--bg);
       border: 1px solid var(--border);
+      color: var(--muted);
+    }
+    .stage-pill.active {
+      background: rgba(88, 166, 255, 0.15);
+      border-color: var(--accent);
       color: var(--accent);
-      text-decoration: none;
-      font-size: 0.85rem;
       font-weight: 600;
     }
-    .artifacts a:hover { border-color: var(--accent); }
-    .error {
-      display: none;
-      margin-top: 1rem;
-      padding: 0.75rem 1rem;
-      background: rgba(255, 107, 107, 0.12);
-      border: 1px solid var(--error);
-      border-radius: 8px;
-      color: var(--error);
-      font-size: 0.9rem;
+    .stage-pill.done {
+      background: rgba(63, 185, 80, 0.15);
+      border-color: var(--success);
+      color: var(--success);
     }
-    .error.visible { display: block; }
-    .job-id {
-      font-family: ui-monospace, monospace;
+
+    /* Video Workspace */
+    .workspace-layout {
+      display: grid;
+      grid-template-columns: 1fr 450px;
+      gap: 1.5rem;
+      height: calc(100vh - 120px);
+    }
+    @media (max-width: 1100px) {
+      .workspace-layout { grid-template-columns: 1fr; height: auto; }
+    }
+
+    .player-container {
+      background: #000;
+      border-radius: 12px;
+      aspect-ratio: 16/9;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--muted);
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+
+    .transcript-pane {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+    .pane-header {
+      padding: 1rem;
+      border-bottom: 1px solid var(--border);
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .transcript-feed {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    .seg-card {
+      background: var(--surface-elevated);
+      padding: 0.75rem 1rem;
+      border-radius: 8px;
+      border: 1px solid var(--border);
+      cursor: pointer;
+      transition: border-color 0.15s;
+    }
+    .seg-card:hover { border-color: var(--accent); }
+    .seg-meta {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.35rem;
       font-size: 0.75rem;
       color: var(--muted);
-      margin-top: 0.5rem;
     }
-    footer {
-      margin-top: 2.5rem;
+    .speaker-tag {
+      color: var(--accent);
+      font-weight: 600;
+    }
+
+    /* Chat / Tutor Pane */
+    .chat-feed {
+      flex: 1;
+      overflow-y: auto;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+    .chat-bubble {
+      padding: 0.85rem 1rem;
+      border-radius: 8px;
+      max-width: 85%;
+      line-height: 1.5;
+      font-size: 0.95rem;
+    }
+    .chat-user {
+      align-self: flex-end;
+      background: var(--accent);
+      color: #090b10;
+      font-weight: 500;
+    }
+    .chat-tutor {
+      align-self: flex-start;
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+
+    .artifacts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 1rem;
+      margin-top: 1rem;
+    }
+    .artifact-btn {
+      background: var(--surface-elevated);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 1rem;
       text-align: center;
-      color: var(--muted);
-      font-size: 0.8rem;
+      text-decoration: none;
+      color: var(--text);
+      font-weight: 600;
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      transition: border-color 0.15s;
     }
-    footer a { color: var(--accent); }
+    .artifact-btn:hover { border-color: var(--accent); color: var(--accent); }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <h1>Video → Knowledge</h1>
-    <p class="sub">Turn technical lectures into structured notes, Anki decks &amp; PDFs.</p>
 
-    <div class="card">
-      <div class="tabs">
-        <button class="tab active" data-tab="url" type="button">YouTube URL</button>
-        <button class="tab" data-tab="file" type="button">Upload file</button>
-      </div>
-
-      <div id="panel-url">
-        <label for="url">Video URL</label>
-        <input type="url" id="url" placeholder="https://www.youtube.com/watch?v=..." />
-      </div>
-
-      <div id="panel-file" style="display:none">
-        <label for="file">Video / audio file (≤ 1 GB)</label>
-        <input type="file" id="file" accept="video/*,audio/*" />
-      </div>
-
-      <label for="title">Title (optional)</label>
-      <input type="text" id="title" placeholder="Lecture title" />
-
-      <button class="primary" id="submit" type="button">Start processing</button>
-
-      <div class="progress-wrap" id="progress">
-        <div class="status-line"><strong id="status-text">Queued</strong> — <span id="status-msg">Waiting…</span></div>
-        <div class="bar-bg"><div class="bar" id="bar"></div></div>
-        <div class="job-id" id="job-id"></div>
-        <div class="artifacts" id="artifacts"></div>
-        <div class="error" id="error"></div>
-      </div>
+  <header>
+    <div class="brand">
+      <span>VideoMind AI</span>
+      <span class="brand-badge">Knowledge OS 2.0</span>
     </div>
+    <div class="nav-tabs">
+      <button class="nav-tab active" onclick="switchTab('tab-ingest')">Command Center</button>
+      <button class="nav-tab" onclick="switchTab('tab-workspace')">Video Workspace</button>
+      <button class="nav-tab" onclick="switchTab('tab-tutor')">AI Tutor</button>
+      <button class="nav-tab" onclick="switchTab('tab-graph')">Knowledge Graph</button>
+      <button class="nav-tab" onclick="switchTab('tab-search')">Hybrid Search</button>
+    </div>
+  </header>
 
-    <footer>
-      API docs: <a href="/docs" target="_blank">/docs</a>
-    </footer>
-  </div>
+  <main>
+    <!-- TAB 1: COMMAND CENTER / INGESTION -->
+    <section id="tab-ingest" class="tab-content active">
+      <div class="grid-2">
+        <div class="card">
+          <h2>Process Video Lecture</h2>
+          <p style="color:var(--muted); font-size:0.9rem; margin-bottom:1.5rem;">
+            Extract multimodal frames, transcribe speech, build Knowledge Graph, and compile Anki/PDFs.
+          </p>
+
+          <label>Source Type</label>
+          <select id="sourceType" onchange="toggleSourceInputs()">
+            <option value="url">YouTube / Video URL</option>
+            <option value="file">Local Media Upload (&le; 1 GB)</option>
+          </select>
+
+          <div id="urlInputGroup">
+            <label>Video URL</label>
+            <input type="text" id="videoUrl" placeholder="https://www.youtube.com/watch?v=..." />
+          </div>
+
+          <div id="fileInputGroup" style="display:none;">
+            <label>Upload File</label>
+            <input type="file" id="mediaFile" accept="video/*,audio/*" />
+          </div>
+
+          <label>Lecture Title (Optional)</label>
+          <input type="text" id="lectureTitle" placeholder="e.g. Attention Mechanism & Transformers" />
+
+          <button class="btn-primary" id="btnSubmit" onclick="submitPipelineJob()">Launch Knowledge Pipeline</button>
+
+          <div id="pipelineTracker" class="pipeline-tracker">
+            <div style="display:flex; justify-content:space-between; margin-bottom:0.4rem; font-size:0.85rem;">
+              <span id="trackerStatus" style="font-weight:600; color:var(--accent);">INGESTING</span>
+              <span id="trackerProgress">10%</span>
+            </div>
+            <div class="progress-bar-bg">
+              <div class="progress-bar-fill" id="progressBar"></div>
+            </div>
+            <div id="trackerMessage" style="font-size:0.85rem; color:var(--muted); margin-bottom:0.75rem;">Initializing pipeline...</div>
+
+            <div class="pipeline-stages">
+              <span class="stage-pill" id="stg_ingest">Ingestion</span>
+              <span class="stage-pill" id="stg_asr">ASR Transcribe</span>
+              <span class="stage-pill" id="stg_diar">Speaker Diarization</span>
+              <span class="stage-pill" id="stg_vision">Visual Keyframes</span>
+              <span class="stage-pill" id="stg_llm">Frontier Structuring</span>
+              <span class="stage-pill" id="stg_knowledge">Knowledge Graph</span>
+              <span class="stage-pill" id="stg_artifacts">Artifacts</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h2>Generated Artifacts</h2>
+          <p style="color:var(--muted); font-size:0.9rem; margin-bottom:1rem;">
+            One-click publication-ready educational materials.
+          </p>
+          <div id="artifactsContainer" class="artifacts-grid">
+            <div style="grid-column: 1/-1; color:var(--muted); font-size:0.9rem;">
+              No job completed yet. Process a video on the left to generate artifacts.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 2: VIDEO WORKSPACE -->
+    <section id="tab-workspace" class="tab-content">
+      <div class="workspace-layout">
+        <div>
+          <div class="player-container" id="playerWrap">
+            <span>Video player will appear here once a video is loaded</span>
+          </div>
+          <div style="margin-top:1rem;" class="card">
+            <h3 id="currentVideoTitle">Lecture Workspace</h3>
+            <p id="currentVideoMeta" style="color:var(--muted); font-size:0.85rem; margin-top:0.25rem;">
+              Load a video to navigate synchronized timestamps and slides.
+            </p>
+          </div>
+        </div>
+        <div class="transcript-pane">
+          <div class="pane-header">
+            <span>Synchronized Transcript</span>
+            <span id="segCountBadge" style="font-size:0.75rem; color:var(--muted);">0 segments</span>
+          </div>
+          <div class="transcript-feed" id="transcriptFeed">
+            <div style="color:var(--muted); text-align:center; margin-top:2rem;">
+              Transcript will display here once processed.
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: AI TUTOR -->
+    <section id="tab-tutor" class="tab-content">
+      <div class="card" style="display:flex; flex-direction:column; height:calc(100vh - 150px);">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); padding-bottom:1rem; margin-bottom:1rem;">
+          <div>
+            <h2>Socratic AI Tutor</h2>
+            <p style="color:var(--muted); font-size:0.85rem;">Grounded explanations and progressive hints with timestamp citations.</p>
+          </div>
+          <select id="tutorModeSelect" style="width:200px; margin-bottom:0;">
+            <option value="Beginner">Beginner (Analogies)</option>
+            <option value="Intermediate" selected>Intermediate (Balanced)</option>
+            <option value="Advanced">Advanced (Theory)</option>
+            <option value="Developer">Developer (Code)</option>
+            <option value="Interview">Technical Interview</option>
+            <option value="Exam">Exam Prep (High Yield)</option>
+          </select>
+        </div>
+
+        <div class="chat-feed" id="chatFeed">
+          <div class="chat-bubble chat-tutor">
+            👋 Hello! I am your VideoMind AI Tutor. Ask me any conceptual question about your processed lecture, ask for hints, or submit a solution to get instant feedback!
+          </div>
+        </div>
+
+        <div style="display:flex; gap:0.75rem; margin-top:1rem;">
+          <input type="text" id="tutorInput" placeholder="Ask a question or request a hint..." style="margin-bottom:0;" onkeydown="if(event.key==='Enter') sendTutorMessage()" />
+          <button class="btn-primary" style="width:120px;" onclick="sendTutorMessage()">Ask Tutor</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: KNOWLEDGE GRAPH -->
+    <section id="tab-graph" class="tab-content">
+      <div class="card">
+        <h2>Extracted Knowledge Graph</h2>
+        <p style="color:var(--muted); font-size:0.9rem; margin-bottom:1rem;">
+          Concepts, formulas, definitions, and prerequisite dependencies.
+        </p>
+        <div id="graphCanvas" style="height:550px; background:var(--bg); border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--muted);">
+          Interactive graph elements will appear here after video processing.
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 5: HYBRID SEARCH -->
+    <section id="tab-search" class="tab-content">
+      <div class="card">
+        <h2>Hybrid Search Engine</h2>
+        <p style="color:var(--muted); font-size:0.9rem; margin-bottom:1rem;">
+          Reciprocal Rank Fusion across BM25 exact keywords, dense vector embeddings, and concept nodes.
+        </p>
+        <div style="display:flex; gap:0.75rem; margin-bottom:1.5rem;">
+          <input type="text" id="searchInput" placeholder="Search concepts, code, formulas, or spoken explanations..." style="margin-bottom:0;" onkeydown="if(event.key==='Enter') runSearch()" />
+          <button class="btn-primary" style="width:120px;" onclick="runSearch()">Search</button>
+        </div>
+
+        <div id="searchResults" style="display:flex; flex-direction:column; gap:1rem;">
+          <div style="color:var(--muted); text-align:center; padding:2rem;">Enter a query above to search through indexed video lectures.</div>
+        </div>
+      </div>
+    </section>
+  </main>
 
   <script>
-    const tabs = document.querySelectorAll(".tab");
-    const panelUrl = document.getElementById("panel-url");
-    const panelFile = document.getElementById("panel-file");
-    let mode = "url";
+    let activeJobId = null;
+    let eventSource = null;
 
-    tabs.forEach((t) => {
-      t.addEventListener("click", () => {
-        tabs.forEach((x) => x.classList.remove("active"));
-        t.classList.add("active");
-        mode = t.dataset.tab;
-        panelUrl.style.display = mode === "url" ? "block" : "none";
-        panelFile.style.display = mode === "file" ? "block" : "none";
-      });
-    });
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+      document.querySelectorAll('.nav-tab').forEach(el => el.classList.remove('active'));
+      document.getElementById(tabId).classList.add('active');
+      event.target.classList.add('active');
+    }
 
-    const submitBtn = document.getElementById("submit");
-    const progressEl = document.getElementById("progress");
-    const bar = document.getElementById("bar");
-    const statusText = document.getElementById("status-text");
-    const statusMsg = document.getElementById("status-msg");
-    const jobIdEl = document.getElementById("job-id");
-    const artifactsEl = document.getElementById("artifacts");
-    const errorEl = document.getElementById("error");
+    function toggleSourceInputs() {
+      const type = document.getElementById('sourceType').value;
+      document.getElementById('urlInputGroup').style.display = type === 'url' ? 'block' : 'none';
+      document.getElementById('fileInputGroup').style.display = type === 'file' ? 'block' : 'none';
+    }
 
-    let es = null;
-
-    submitBtn.addEventListener("click", async () => {
-      errorEl.classList.remove("visible");
-      artifactsEl.classList.remove("visible");
-      artifactsEl.innerHTML = "";
-      submitBtn.disabled = true;
-      progressEl.classList.add("visible");
-      bar.style.width = "2%";
-      statusText.textContent = "Submitting";
-      statusMsg.textContent = "Sending job…";
+    async function submitPipelineJob() {
+      const type = document.getElementById('sourceType').value;
+      const title = document.getElementById('lectureTitle').value.trim() || null;
+      const btn = document.getElementById('btnSubmit');
+      btn.disabled = true;
 
       try {
         let res;
-        if (mode === "url") {
-          const url = document.getElementById("url").value.trim();
-          if (!url) throw new Error("Please enter a YouTube URL");
-          const title = document.getElementById("title").value.trim() || null;
-          res = await fetch("/api/v1/jobs/url", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
+        if (type === 'url') {
+          const url = document.getElementById('videoUrl').value.trim();
+          if (!url) throw new Error("Please enter a valid video URL.");
+          res = await fetch('/api/v1/jobs/url', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ url, title }),
           });
         } else {
-          const file = document.getElementById("file").files[0];
-          if (!file) throw new Error("Please choose a file");
+          const file = document.getElementById('mediaFile').files[0];
+          if (!file) throw new Error("Please select a file to upload.");
           const fd = new FormData();
-          fd.append("file", file);
-          const title = document.getElementById("title").value.trim();
-          if (title) fd.append("title", title);
-          res = await fetch("/api/v1/jobs/upload", { method: "POST", body: fd });
+          fd.append('file', file);
+          if (title) fd.append('title', title);
+          res = await fetch('/api/v1/jobs/upload', { method: 'POST', body: fd });
         }
 
         if (!res.ok) {
           const err = await res.json().catch(() => ({}));
-          throw new Error(err.detail || res.statusText || "Request failed");
+          throw new Error(err.detail || 'Job submission failed');
         }
+
         const data = await res.json();
-        jobIdEl.textContent = "Job: " + data.job_id;
-        listenProgress(data.job_id);
-      } catch (e) {
-        showError(e.message || String(e));
-        submitBtn.disabled = false;
+        activeJobId = data.job_id;
+        startProgressTracking(activeJobId);
+      } catch (err) {
+        alert(err.message);
+        btn.disabled = false;
       }
-    });
+    }
 
-    function listenProgress(jobId) {
-      if (es) es.close();
-      es = new EventSource("/api/v1/jobs/" + jobId + "/progress");
-      es.addEventListener("update", (ev) => {
+    function startProgressTracking(jobId) {
+      const tracker = document.getElementById('pipelineTracker');
+      tracker.classList.add('visible');
+      if (eventSource) eventSource.close();
+
+      eventSource = new EventSource('/api/v1/jobs/' + encodeURIComponent(jobId) + '/progress');
+      eventSource.addEventListener('update', (e) => {
         try {
-          const d = JSON.parse(ev.data);
-          statusText.textContent = d.status || "…";
-          statusMsg.textContent = d.message || "";
-          if (typeof d.progress === "number") bar.style.width = d.progress + "%";
+          const d = JSON.parse(e.data);
+          document.getElementById('trackerStatus').textContent = d.status;
+          document.getElementById('trackerProgress').textContent = (d.progress || 0) + '%';
+          document.getElementById('progressBar').style.width = (d.progress || 0) + '%';
+          document.getElementById('trackerMessage').textContent = d.message || '';
 
-          if (d.status === "COMPLETED") {
-            es.close();
-            submitBtn.disabled = false;
-            bar.style.width = "100%";
-            showArtifacts(jobId, d.result);
-          } else if (d.status === "FAILED") {
-            es.close();
-            submitBtn.disabled = false;
-            showError(d.error || d.message || "Pipeline failed");
+          // Highlight stage pills
+          highlightStagePills(d.status);
+
+          if (d.status === 'COMPLETED') {
+            eventSource.close();
+            document.getElementById('btnSubmit').disabled = false;
+            displayArtifacts(jobId);
+            loadJobIntoWorkspace(jobId);
+          } else if (d.status === 'FAILED') {
+            eventSource.close();
+            document.getElementById('btnSubmit').disabled = false;
+            alert("Pipeline failed: " + (d.message || d.error));
           }
         } catch (_) {}
       });
-      es.onerror = () => {
-        // Fallback poll once
-        fetch("/api/v1/jobs/" + jobId + "/status")
-          .then((r) => r.json())
-          .then((d) => {
-            if (d.status === "COMPLETED") {
-              statusText.textContent = "COMPLETED";
-              bar.style.width = "100%";
-              showArtifacts(jobId, d.result);
-              submitBtn.disabled = false;
-              if (es) es.close();
-            } else if (d.status === "FAILED") {
-              showError(d.error || d.message);
-              submitBtn.disabled = false;
-              if (es) es.close();
-            }
-          })
-          .catch(() => {});
+    }
+
+    function highlightStagePills(status) {
+      const pills = {
+        'INGESTING': 'stg_ingest',
+        'DOWNLOADING': 'stg_ingest',
+        'TRANSCRIBING': 'stg_asr',
+        'DIARIZING': 'stg_diar',
+        'ANALYZING_VIDEO': 'stg_vision',
+        'SEGMENTING': 'stg_llm',
+        'EXTRACTING_KNOWLEDGE': 'stg_knowledge',
+        'GENERATING_ARTIFACTS': 'stg_artifacts',
       };
+      const activeId = pills[status];
+      if (activeId) {
+        const el = document.getElementById(activeId);
+        if (el) el.classList.add('active');
+      }
     }
 
-    function showArtifacts(jobId, result) {
-      artifactsEl.innerHTML = "";
-      const names = ["markdown", "transcript", "pdf", "anki"];
-      const labels = { markdown: "Notes (.md)", transcript: "Transcript", pdf: "PDF", anki: "Anki deck" };
-      names.forEach((n) => {
-        const a = document.createElement("a");
-        a.href = "/api/v1/jobs/" + jobId + "/artifacts/" + n;
-        a.textContent = labels[n];
-        a.target = "_blank";
-        artifactsEl.appendChild(a);
+    function displayArtifacts(jobId) {
+      const c = document.getElementById('artifactsContainer');
+      c.innerHTML = '';
+      const items = [
+        ['markdown', 'Notes (.md)', '📝'],
+        ['pdf', 'Typst PDF', '📄'],
+        ['anki', 'Anki Deck (.apkg)', '🗂️'],
+        ['srt', 'Subtitles (.srt)', '⏱️'],
+        ['vtt', 'WebVTT (.vtt)', '🎬'],
+        ['json', 'Knowledge AST (.json)', '🧠'],
+        ['docx', 'Word (.docx)', '📘'],
+      ];
+      items.forEach(([type, label, icon]) => {
+        const a = document.createElement('a');
+        a.className = 'artifact-btn';
+        a.href = `/api/v1/jobs/${encodeURIComponent(jobId)}/artifacts/${type}`;
+        a.target = '_blank';
+        a.innerHTML = `<span style="font-size:1.5rem">${icon}</span><span>${label}</span>`;
+        c.appendChild(a);
       });
-      artifactsEl.classList.add("visible");
     }
 
-    function showError(msg) {
-      errorEl.textContent = msg;
-      errorEl.classList.add("visible");
+    async function loadJobIntoWorkspace(jobId) {
+      try {
+        const res = await fetch(`/api/v1/jobs/${encodeURIComponent(jobId)}/artifacts/transcript`);
+        if (res.ok) {
+          const segs = await res.json();
+          renderTranscript(segs);
+        }
+      } catch (_) {}
+    }
+
+    function renderTranscript(segs) {
+      const feed = document.getElementById('transcriptFeed');
+      feed.innerHTML = '';
+      document.getElementById('segCountBadge').textContent = `${segs.length} segments`;
+      segs.forEach(s => {
+        const d = document.createElement('div');
+        d.className = 'seg-card';
+        d.innerHTML = `
+          <div class="seg-meta">
+            <span class="speaker-tag">${s.speaker} (${s.speaker_role || 'Speaker'})</span>
+            <span>[${s.start}s - ${s.end}s]</span>
+          </div>
+          <div>${s.text}</div>
+        `;
+        feed.appendChild(d);
+      });
+    }
+
+    async function sendTutorMessage() {
+      const input = document.getElementById('tutorInput');
+      const msg = input.value.trim();
+      if (!msg) return;
+
+      const feed = document.getElementById('chatFeed');
+      const userBubble = document.createElement('div');
+      userBubble.className = 'chat-bubble chat-user';
+      userBubble.textContent = msg;
+      feed.appendChild(userBubble);
+      input.value = '';
+      feed.scrollTop = feed.scrollHeight;
+
+      const mode = document.getElementById('tutorModeSelect').value;
+
+      try {
+        const res = await fetch('/api/v1/tutor/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg, mode, video_id: activeJobId }),
+        });
+        const data = await res.json();
+        const tutorBubble = document.createElement('div');
+        tutorBubble.className = 'chat-bubble chat-tutor';
+        tutorBubble.innerHTML = (data.tutor_reply || '').replace(/\n/g, '<br>');
+        feed.appendChild(tutorBubble);
+        feed.scrollTop = feed.scrollHeight;
+      } catch (err) {
+        alert("Failed to communicate with AI Tutor: " + err.message);
+      }
+    }
+
+    async function runSearch() {
+      const q = document.getElementById('searchInput').value.trim();
+      if (!q) return;
+
+      const c = document.getElementById('searchResults');
+      c.innerHTML = '<div style="color:var(--muted); text-align:center;">Searching across all indexed lectures...</div>';
+
+      try {
+        const res = await fetch(`/api/v1/search?q=${encodeURIComponent(q)}&k=6`);
+        const data = await res.json();
+        c.innerHTML = '';
+        if (!data.results || data.results.length === 0) {
+          c.innerHTML = '<div style="color:var(--muted); text-align:center; padding:2rem;">No matching segments found.</div>';
+          return;
+        }
+
+        data.results.forEach(r => {
+          const item = document.createElement('div');
+          item.className = 'card';
+          item.innerHTML = `
+            <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem;">
+              <span style="font-weight:700; color:var(--accent);">${r.video_title}</span>
+              <span style="color:var(--muted); font-size:0.85rem;">${r.timestamp_formatted} &bull; Score: ${r.score}</span>
+            </div>
+            <p style="line-height:1.5;">${r.snippet}</p>
+          `;
+          c.appendChild(item);
+        });
+      } catch (err) {
+        c.innerHTML = `<div style="color:var(--danger); text-align:center;">Search error: ${err.message}</div>`;
+      }
     }
   </script>
 </body>
