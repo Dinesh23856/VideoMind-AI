@@ -106,6 +106,40 @@ global_quota_manager = QuotaManager()
 global_memory_manager = PersonalMemoryManager()
 global_governance_manager = DataGovernanceManager(global_memory_manager)
 
+from app.events.stream import MultimodalEventStream, MultimodalEvent, EventType, EventModality
+from app.events.bus import EventBus
+from app.evidence.graph import EvidenceGraph, EvidenceNode, EvidenceNodeType, EvidenceEdgeType
+from app.evidence.resolver import ClaimResolutionEngine, RawClaim
+from app.evidence.trust import SourceTrustModel, SourceMetadata
+from app.knowledge.versioning import KnowledgeVersionControl
+from app.agents.supervisor import AgentSupervisor
+from app.agents.research import AutonomousResearchAgent
+from app.agents.project_mode import ProjectModeSynthesizer
+from app.documents.ingest import DocumentIngestionEngine
+from app.documents.cross_rag import CrossMediaRetrievalEngine
+from app.privacy.engine import PrivacyEngine, PIIRedactionEngine
+from app.lineage.tracker import LineageTracker, LineageNode, LineageNodeType
+from app.observability.slo import SLOMonitor, CostAllocationTracker
+from app.core.feature_flags import FeatureFlagManager
+
+global_event_stream = MultimodalEventStream()
+global_event_bus = EventBus()
+global_evidence_graph = EvidenceGraph()
+global_claim_resolver = ClaimResolutionEngine()
+global_source_trust = SourceTrustModel()
+global_kvc = KnowledgeVersionControl()
+global_agent_supervisor = AgentSupervisor()
+global_research_agent = AutonomousResearchAgent()
+global_project_synthesizer = ProjectModeSynthesizer()
+global_doc_ingest = DocumentIngestionEngine()
+global_cross_rag = CrossMediaRetrievalEngine()
+global_privacy_engine = PrivacyEngine()
+global_pii_redactor = PIIRedactionEngine()
+global_lineage_tracker = LineageTracker()
+global_slo_monitor = SLOMonitor()
+global_cost_tracker = CostAllocationTracker()
+global_feature_flags = FeatureFlagManager()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -1475,6 +1509,175 @@ async def video_chat_endpoint(
         "evidence_count": len(ev_pack.items),
         "key_entities": ev_pack.key_entities,
         "contradictions_detected": rag_resp.contradictions_detected,
+    }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Next-Gen Video Knowledge OS Subsystem Endpoints (Phases 57–120)
+# ─────────────────────────────────────────────────────────────────────────────
+
+class EvidenceVerifyRequest(BaseModel):
+    claim_text: str
+    supporting_snippets: List[str] = Field(default_factory=list)
+    contradicting_snippets: List[str] = Field(default_factory=list)
+
+
+class KnowledgeDiffRequest(BaseModel):
+    from_revision: str
+    to_revision: str
+
+
+class AgentResearchRequest(BaseModel):
+    topic: str
+    passages: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class AgentProjectRequest(BaseModel):
+    topic: str
+    concept_names: List[str] = Field(default_factory=list)
+
+
+class DocumentIngestRequest(BaseModel):
+    doc_id: str
+    doc_title: str
+    content: str
+    media_type: str = "markdown"
+
+
+class CrossSearchRequest(BaseModel):
+    query: str
+    top_k: int = 8
+
+
+class PrivacyRedactRequest(BaseModel):
+    text: str
+
+
+@app.get("/api/v1/events/stream")
+async def get_event_stream(
+    video_id: Optional[str] = None,
+    event_type: Optional[str] = None,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    ev_type = EventType(event_type) if event_type else None
+    events = global_event_stream.query(
+        video_id=video_id,
+        event_types=[ev_type] if ev_type else None,
+    )
+    return {"total": len(events), "events": [e.model_dump() for e in events]}
+
+
+@app.post("/api/v1/evidence/verify")
+async def verify_claim_endpoint(
+    req: EvidenceVerifyRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    g = EvidenceGraph()
+    c = EvidenceNode(node_type=EvidenceNodeType.CLAIM, content=req.claim_text)
+    cid = g.add_node(c)
+
+    for s in req.supporting_snippets:
+        nid = g.add_node(EvidenceNode(node_type=EvidenceNodeType.TRANSCRIPT_SPAN, content=s))
+        g.add_edge(cid, nid, EvidenceEdgeType.SUPPORTED_BY, weight=1.0)
+
+    for c_snip in req.contradicting_snippets:
+        nid = g.add_node(EvidenceNode(node_type=EvidenceNodeType.TRANSCRIPT_SPAN, content=c_snip))
+        g.add_edge(cid, nid, EvidenceEdgeType.CONTRADICTED_BY, weight=1.0)
+
+    verif = g.compute_claim_verification(cid)
+    return verif
+
+
+@app.post("/api/v1/knowledge/diff")
+async def get_knowledge_diff(
+    req: KnowledgeDiffRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    try:
+        d = global_kvc.diff(req.from_revision, req.to_revision)
+        return d.model_dump()
+    except KeyError as ex:
+        raise HTTPException(status_code=404, detail=str(ex))
+
+
+@app.post("/api/v1/agents/research")
+async def run_autonomous_research(
+    req: AgentResearchRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    report = global_research_agent.conduct_research(req.topic, req.passages)
+    return report.model_dump()
+
+
+@app.post("/api/v1/agents/project")
+async def generate_project_spec(
+    req: AgentProjectRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    from app.domain.models import ConceptNode
+    concepts = [
+        ConceptNode(id=f"c_{i}", name=name, definition=f"Core principle of {name}")
+        for i, name in enumerate(req.concept_names)
+    ]
+    spec = global_project_synthesizer.synthesize_project(req.topic, concepts)
+    return spec.model_dump()
+
+
+@app.post("/api/v1/documents/ingest")
+async def ingest_document_endpoint(
+    req: DocumentIngestRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    if req.media_type == "code":
+        chunks = global_doc_ingest.ingest_code(req.doc_id, req.doc_title, req.content)
+    else:
+        chunks = global_doc_ingest.ingest_text_or_markdown(
+            req.doc_id, req.doc_title, req.content, media_type=req.media_type
+        )
+    global_cross_rag.index_document_chunks(chunks)
+    return {"doc_id": req.doc_id, "chunks_indexed": len(chunks)}
+
+
+@app.post("/api/v1/documents/cross-search")
+async def cross_search_endpoint(
+    req: CrossSearchRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    pack = global_cross_rag.search(req.query, top_k=req.top_k)
+    return pack.model_dump()
+
+
+@app.post("/api/v1/privacy/redact")
+async def redact_pii_endpoint(
+    req: PrivacyRedactRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    redacted = global_pii_redactor.redact(req.text)
+    return redacted.model_dump()
+
+
+@app.get("/api/v1/observability/slo")
+async def get_slo_endpoint(
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    return {
+        "slo": global_slo_monitor.get_health_report().model_dump(),
+        "cost": global_cost_tracker.get_summary(),
+        "feature_flags": {
+            k: v.model_dump() for k, v in global_feature_flags._flags.items()
+        },
+    }
+
+
+@app.get("/api/v1/lineage/trace")
+async def trace_lineage_endpoint(
+    node_id: str = Query(...),
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    return {
+        "node_id": node_id,
+        "ancestors": [n.model_dump() for n in global_lineage_tracker.trace_upstream(node_id)],
+        "descendants": [d.model_dump() for d in global_lineage_tracker.trace_downstream(node_id)],
     }
 
 

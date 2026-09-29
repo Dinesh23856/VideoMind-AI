@@ -432,9 +432,125 @@ class RealityGateRunner:
 
         return "Verified Code Static Analysis, Mathematical Derivations, Resource Quotas, and GDPR Right-to-Erasure."
 
+    def gate_13_events_and_temporal(self) -> str:
+        from app.events.stream import MultimodalEventStream, MultimodalEvent, EventType, EventModality
+        from app.reasoning.temporal import TemporalQueryEngine, compute_temporal_relation, TemporalRelation
+        from app.knowledge.lifecycle import ConceptLifecycleTracker, ConceptLifecycleStage
+
+        stream = MultimodalEventStream()
+        e1 = MultimodalEvent(event_type=EventType.CONCEPT_INTRODUCED, modality=EventModality.TEXT, start_time=1.0, end_time=10.0, payload={"concept": "Attention"})
+        e2 = MultimodalEvent(event_type=EventType.CONCEPT_EXPLAINED, modality=EventModality.TEXT, start_time=12.0, end_time=30.0, payload={"concept": "Attention"})
+        stream.add_event(e1)
+        stream.add_event(e2)
+
+        rel = compute_temporal_relation(1.0, 10.0, 12.0, 30.0)
+        if rel != TemporalRelation.BEFORE:
+            raise AssertionError(f"Expected BEFORE, got {rel}")
+
+        engine = TemporalQueryEngine(stream)
+        first = engine.find_first_introduction("Attention")
+        if not first or first.event_id != e1.event_id:
+            raise AssertionError("TemporalQueryEngine failed to find first concept introduction")
+
+        tracker = ConceptLifecycleTracker()
+        tracker.record_event(e1)
+        r2 = tracker.record_event(e2)
+        if r2.current_stage != ConceptLifecycleStage.EXPLAINED:
+            raise AssertionError("ConceptLifecycleTracker failed stage transition")
+
+        return "Verified Multimodal Event Stream, Allen's Interval Algebra, and Concept Lifecycle Trajectories."
+
+    def gate_14_evidence_and_trust(self) -> str:
+        from app.evidence.graph import EvidenceGraph, EvidenceNode, EvidenceNodeType, EvidenceEdgeType
+        from app.evidence.resolver import ClaimResolutionEngine, RawClaim
+        from app.evidence.trust import SourceTrustModel, SourceMetadata
+
+        g = EvidenceGraph()
+        cid = g.add_node(EvidenceNode(node_type=EvidenceNodeType.CLAIM, content="Skip connections prevent vanishing gradient."))
+        nid = g.add_node(EvidenceNode(node_type=EvidenceNodeType.TRANSCRIPT_SPAN, content="Gradients propagate through identity branch."))
+        g.add_edge(cid, nid, EvidenceEdgeType.SUPPORTED_BY, weight=1.0)
+        verif = g.compute_claim_verification(cid)
+        if verif["status"] != "VERIFIED":
+            raise AssertionError(f"Expected VERIFIED, got {verif['status']}")
+
+        resolver = ClaimResolutionEngine(similarity_threshold=0.5)
+        claims = [
+            RawClaim(source_id="s1", text="Adam optimizer combines momentum and RMSprop."),
+            RawClaim(source_id="s2", text="Adam optimizer fuses momentum with RMSprop."),
+        ]
+        resolved = resolver.resolve_claims(claims, total_sources=2)
+        if not resolved or resolved[0].consensus_status != "CONSENSUS":
+            raise AssertionError("Claim resolution failed consensus aggregation")
+
+        trust = SourceTrustModel(current_year=2026)
+        score = trust.compute_trust_score(SourceMetadata(source_id="src1", source_type="academic_paper", peer_reviewed=True))
+        if score["trust_score"] < 0.9:
+            raise AssertionError("Source trust model failed academic paper scoring")
+
+        return "Verified Independent Evidence Graph, Multi-Source Claim Resolution, and Calibrated Source Trust."
+
+    def gate_15_versioning_dag_resilience(self) -> str:
+        from app.domain.models import ConceptNode
+        from app.knowledge.versioning import KnowledgeVersionControl
+        from app.pipeline.dag import DAGEngine, DAGTask, RetryPolicy
+        from app.core.resilience import LockManager, DistributedLock, CircuitBreaker, DeadLetterQueueManager
+
+        kvc = KnowledgeVersionControl()
+        c1 = ConceptNode(id="c1", name="Backprop", definition="Chain rule gradient backprop")
+        rev1 = kvc.commit([c1], message="Initial")
+        c2 = ConceptNode(id="c2", name="Adam", definition="Adaptive moment estimation")
+        rev2 = kvc.commit([c1, c2], message="Add Adam")
+        diff = kvc.diff(rev1.revision_id, rev2.revision_id)
+        if "c2" not in diff.added_concepts:
+            raise AssertionError("Knowledge diff failed to detect added concept")
+
+        dag = DAGEngine()
+        dag.add_task(DAGTask("t1", "Audio", lambda ctx: {"audio": True}))
+        dag.add_task(DAGTask("t2", "Fusion", lambda ctx: {"done": True}, dependencies=["t1"]))
+        res = dag.execute_sync()
+        if not res["all_succeeded"]:
+            raise AssertionError("DAG execution failed")
+
+        lm = LockManager()
+        l = DistributedLock("res_lock", ttl_seconds=5.0)
+        if not l.acquire(lm) or not l.release(lm):
+            raise AssertionError("Distributed lock failure")
+
+        return "Verified Git-like Knowledge Version Control, Pipeline DAG Execution, and Resilience Subsystems."
+
+    def gate_16_agents_and_cross_media(self) -> str:
+        from app.agents.supervisor import AgentSupervisor
+        from app.agents.research import AutonomousResearchAgent
+        from app.documents.ingest import DocumentIngestionEngine
+        from app.documents.cross_rag import CrossMediaRetrievalEngine
+        from app.privacy.engine import PIIRedactionEngine
+
+        sup = AgentSupervisor()
+        plan = sup.create_plan("Research transformers vs state space models")
+        if len(plan.steps) != 4:
+            raise AssertionError("Supervisor failed plan generation")
+
+        doc_eng = DocumentIngestionEngine()
+        chunks = doc_eng.ingest_text_or_markdown("d1", "Lecture Notes", "# Header\nContent about transformers.")
+        if not chunks:
+            raise AssertionError("Document ingestion failed")
+
+        cross_rag = CrossMediaRetrievalEngine()
+        cross_rag.index_document_chunks(chunks)
+        pack = cross_rag.search("transformers")
+        if not pack.matches:
+            raise AssertionError("Cross-media search failed to retrieve matches")
+
+        redactor = PIIRedactionEngine()
+        redacted = redactor.redact("Contact me at user@school.edu or call 555-123-4567")
+        if not redacted.was_modified or "[REDACTED_EMAIL]" not in redacted.redacted_text:
+            raise AssertionError("PII redaction engine failed")
+
+        return "Verified Autonomous Agent Supervisor, Cross-Media Document Grounding, and Privacy Engine."
+
     def run_all(self) -> int:
         print("=" * 70)
-        print("   VIDEOMIND-AI AUTOMATED PRODUCTION REALITY GATES (12 GATES)")
+        print("   VIDEOMIND-AI AUTOMATED PRODUCTION REALITY GATES (16 GATES)")
         print("=" * 70)
 
         gates = [
@@ -450,6 +566,10 @@ class RealityGateRunner:
             (10, "Multi-Video Collections & Knowledge Reasoning", self.gate_10_collections_and_reasoning),
             (11, "Learner Mastery, Spaced Repetition & Study Materials", self.gate_11_mastery_and_study_materials),
             (12, "Code & Math Intelligence & GDPR Data Governance", self.gate_12_code_math_and_governance),
+            (13, "Multimodal Events & Allen's Interval Algebra", self.gate_13_events_and_temporal),
+            (14, "Evidence Graph & Source Trust Calibration", self.gate_14_evidence_and_trust),
+            (15, "Knowledge Versioning, DAG Engine & Resilience", self.gate_15_versioning_dag_resilience),
+            (16, "Autonomous Agents, Cross-Media RAG & Privacy", self.gate_16_agents_and_cross_media),
         ]
 
         all_passed = True

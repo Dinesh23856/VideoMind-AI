@@ -1,4 +1,9 @@
-"""Observability layer: metrics collection, request tracing, and health probes."""
-from .metrics import MetricsCollector, get_metrics_collector
+"""Observability, Telemetry, and Service Level Objectives (SLO) Subsystem."""
 
-__all__ = ["get_metrics_collector", "MetricsCollector"]
+from app.observability.slo import (
+    CostAllocationTracker,
+    SLOHealthReport,
+    SLOMonitor,
+)
+
+__all__ = ["SLOMonitor", "SLOHealthReport", "CostAllocationTracker"]
