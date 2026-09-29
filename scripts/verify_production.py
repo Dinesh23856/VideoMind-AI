@@ -319,9 +319,122 @@ class RealityGateRunner:
 
         return "Verified SSRF boundary protection, path traversal sanitization, and prompt injection fencing."
 
+    def gate_10_collections_and_reasoning(self) -> str:
+        from app.collections.manager import MultiVideoCollectionManager
+        from app.reasoning.engine import ReasoningEngine
+        from app.knowledge.graph import KnowledgeGraph
+        from app.domain.models import ConceptNode, KnowledgeEdgeType
+
+        kg = KnowledgeGraph()
+        c1 = ConceptNode(id="c1", name="Calculus", definition="Study of continuous change", category="Math", importance=0.9)
+        c2 = ConceptNode(id="c2", name="Optimization", definition="Finding maximum or minimum", category="Math", importance=0.95)
+        kg.add_concept(c1)
+        kg.add_concept(c2)
+        kg.add_edge(c1.id, c2.id, KnowledgeEdgeType.PREREQUISITE_OF)
+
+        engine = ReasoningEngine(graph=kg)
+        comp = engine.compare_concepts("Calculus", "Optimization")
+        if not comp.direct_relationship:
+            raise AssertionError("ReasoningEngine failed to identify direct relationship")
+
+        readiness = engine.analyze_prerequisite_readiness("Optimization", mastered_concepts=["Calculus"])
+        if not readiness.is_ready:
+            raise AssertionError("Prerequisite readiness calculation failed")
+
+        plan = engine.synthesize_study_plan("Optimization", available_time_minutes=60)
+        if not plan.get("schedule"):
+            raise AssertionError("Study plan synthesis failed to generate schedule")
+
+        return f"Verified Multi-Video Reasoning, Prerequisite DAG, and Curriculum Synthesis ({len(plan['schedule'])} topics)."
+
+    def gate_11_mastery_and_study_materials(self) -> str:
+        from app.learning.mastery import LearnerMasteryTracker
+        from app.learning.spaced_repetition import SpacedRepetitionScheduler
+        from app.learning.study_material import StudyMaterialGenerator
+        from app.domain.models import LearnerMasteryState, TranscriptSegment, ConceptNode
+
+        # Mastery State Machine
+        tracker = LearnerMasteryTracker()
+        rec = tracker.get_or_create_record("u1", "c1", "Attention")
+        for _ in range(5):
+            rec = tracker.record_attempt("u1", "c1", "Attention", is_correct=True)
+        if rec.mastery_state != LearnerMasteryState.MASTERED:
+            raise AssertionError("Learner mastery did not transition to MASTERED after 5 correct attempts")
+
+        # SM-2 Scheduler
+        scheduler = SpacedRepetitionScheduler()
+        item = scheduler.schedule_initial_review("u1", "c1", "What is Self-Attention?")
+        updated = scheduler.process_review_result(item.item_id, quality=5)
+        if updated.repetition_number != 1:
+            raise AssertionError("SM-2 review result update failed")
+
+        # Study Material Pack
+        gen = StudyMaterialGenerator()
+        segments = [TranscriptSegment(id="s1", start=0.0, end=10.0, text="Welcome to Attention.", importance=0.9)]
+        concepts = [ConceptNode(id="c1", name="Attention", definition="Mechanism for token weighting", category="Arch", importance=0.9)]
+        pack = gen.generate_pack("vid_1", "Attention Mechanisms", segments, concepts)
+        if not pack.executive_summary or not pack.flashcards or not pack.mind_map_mermaid:
+            raise AssertionError("Study material generator output missing key components")
+
+        return f"Verified Learner Mastery State Machine, SuperMemo SM-2 Scheduler, and Multi-Format Study Pack ({len(pack.flashcards)} cards)."
+
+    def gate_12_code_math_and_governance(self) -> str:
+        from app.code.analyzer import CodeIntelligenceEngine
+        from app.math.equations import MathematicalIntelligenceEngine
+        from app.admin.quotas import QuotaManager
+        from app.security.governance import DataGovernanceManager
+        from app.memory.personal_memory import PersonalMemoryManager
+
+        # Code Intelligence
+        code_eng = CodeIntelligenceEngine()
+        snippet = code_eng.detect_and_analyze("def solve(x): return x * 2")
+        if not snippet or "solve" not in snippet.functions:
+            raise AssertionError("Code intelligence failed to extract function metadata")
+
+        # Math Intelligence
+        math_eng = MathematicalIntelligenceEngine()
+        derivation = math_eng.detect_and_structure(r"\nabla L(\theta) = 0 for convex optimization")
+        if not derivation or not derivation.derivation_steps:
+            raise AssertionError("Math intelligence failed to extract derivation sequence")
+
+        # Quotas
+        qm = QuotaManager()
+        quota = qm.get_or_create_quota("u_test", role="STUDENT")
+        if quota.max_video_duration_minutes != 120:
+            raise AssertionError("Tier quota defaults mismatch")
+
+        # GDPR Governance
+        mem = PersonalMemoryManager()
+        mem.record_question("u_test", "What is backprop?")
+        gov = DataGovernanceManager(mem)
+
+        class MockQuery:
+            def filter(self, *a, **k):
+                return self
+            def first(self):
+                return None
+            def all(self):
+                return []
+            def delete(self, *a, **k):
+                return 0
+
+        class MockDB:
+            def query(self, *a, **k):
+                return MockQuery()
+            def delete(self, *a, **k):
+                pass
+            def commit(self):
+                pass
+
+        export_data = gov.export_user_data("u_test", MockDB())
+        if len(export_data["learning_memory"]["recent_questions"]) != 1:
+            raise AssertionError("Data governance export failed to include memory")
+
+        return "Verified Code Static Analysis, Mathematical Derivations, Resource Quotas, and GDPR Right-to-Erasure."
+
     def run_all(self) -> int:
         print("=" * 70)
-        print("   VIDEOMIND-AI AUTOMATED PRODUCTION REALITY GATES (9 GATES)")
+        print("   VIDEOMIND-AI AUTOMATED PRODUCTION REALITY GATES (12 GATES)")
         print("=" * 70)
 
         gates = [
@@ -334,6 +447,9 @@ class RealityGateRunner:
             (7, "Storage Traversal Security & Provider Fail-Fast", self.gate_7_storage_security),
             (8, "Live API Contract & Route Integrity", self.gate_8_api_contract),
             (9, "Security Defenses (SSRF, Traversal, Prompt Guard)", self.gate_9_security_defenses),
+            (10, "Multi-Video Collections & Knowledge Reasoning", self.gate_10_collections_and_reasoning),
+            (11, "Learner Mastery, Spaced Repetition & Study Materials", self.gate_11_mastery_and_study_materials),
+            (12, "Code & Math Intelligence & GDPR Data Governance", self.gate_12_code_math_and_governance),
         ]
 
         all_passed = True

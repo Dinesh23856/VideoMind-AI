@@ -8,7 +8,7 @@ import os
 import time
 from typing import Any, Dict, List, Optional
 import jwt
-from fastapi import Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, status
 
 from app.core.errors import AuthenticationError, AuthorizationError
 
@@ -141,7 +141,7 @@ def require_role(allowed_roles: List[UserRole | str]):
     """Returns a dependency function that enforces user role RBAC."""
     from fastapi import HTTPException, status
 
-    def role_checker(current_user: Dict[str, Any] = get_current_user) -> Dict[str, Any]:
+    def role_checker(current_user: Dict[str, Any] = Depends(get_current_user)) -> Dict[str, Any]:
         user_role = current_user.get("role", "USER")
         if not check_role_permission(user_role, allowed_roles):
             raise HTTPException(

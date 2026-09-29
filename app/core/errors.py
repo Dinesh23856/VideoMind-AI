@@ -93,6 +93,11 @@ class MediaProcessingError(VideoMindException):
     retryable = False
 
 
+class VideoProcessingError(MediaProcessingError):
+    """Alias for media processing failures during video ingestion."""
+    pass
+
+
 class StorageError(VideoMindException):
     error_code = "STORAGE_ERROR"
     status_code = 500

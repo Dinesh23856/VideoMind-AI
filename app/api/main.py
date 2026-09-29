@@ -82,6 +82,30 @@ global_search_engine = HybridSearchEngine()
 global_rag_engine = RAGEngine(global_search_engine)
 global_tutor_engine = AITutorEngine(global_rag_engine)
 
+from app.collections.manager import MultiVideoCollectionManager
+from app.reasoning.engine import ReasoningEngine
+from app.learning.mastery import LearnerMasteryTracker
+from app.learning.spaced_repetition import SpacedRepetitionScheduler
+from app.learning.study_material import StudyMaterialGenerator
+from app.code.analyzer import CodeIntelligenceEngine
+from app.math.equations import MathematicalIntelligenceEngine
+from app.admin.console import AdminConsoleService
+from app.admin.quotas import QuotaManager
+from app.security.governance import DataGovernanceManager
+from app.memory.personal_memory import PersonalMemoryManager
+
+global_collection_manager = MultiVideoCollectionManager(global_search_engine)
+global_reasoning_engine = ReasoningEngine(search_engine=global_search_engine)
+global_mastery_tracker = LearnerMasteryTracker()
+global_spaced_scheduler = SpacedRepetitionScheduler()
+global_study_material_gen = StudyMaterialGenerator()
+global_code_engine = CodeIntelligenceEngine()
+global_math_engine = MathematicalIntelligenceEngine()
+global_admin_service = AdminConsoleService()
+global_quota_manager = QuotaManager()
+global_memory_manager = PersonalMemoryManager()
+global_governance_manager = DataGovernanceManager(global_memory_manager)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -1060,6 +1084,398 @@ async def download_storage_file(
         raise HTTPException(status_code=404, detail="Storage object not found")
     data = storage.read(file_path)
     return Response(content=data, media_type="application/octet-stream")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Next-Gen Multi-Video Collections, Reasoning, Mastery & Governance
+# ─────────────────────────────────────────────────────────────────────────────
+
+class CreateCollectionRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=200)
+    description: Optional[str] = ""
+    video_ids: Optional[List[str]] = Field(default_factory=list)
+
+
+class AddVideoToCollectionRequest(BaseModel):
+    video_id: str
+
+
+class CollectionSearchRequest(BaseModel):
+    query: str = Field(..., min_length=1)
+    k: Optional[int] = 5
+
+
+class CompareConceptsRequest(BaseModel):
+    concept_a: str = Field(..., min_length=1)
+    concept_b: str = Field(..., min_length=1)
+
+
+class PrerequisiteCheckRequest(BaseModel):
+    target_concept: str = Field(..., min_length=1)
+    mastered_concepts: List[str] = Field(default_factory=list)
+
+
+class StudyPlanRequest(BaseModel):
+    target_concept: str = Field(..., min_length=1)
+    mastered_concepts: List[str] = Field(default_factory=list)
+    available_time_minutes: Optional[int] = 60
+
+
+class CalibrateMasteryRequest(BaseModel):
+    concept_id: str = Field(..., min_length=1)
+    concept_name: str = Field(..., min_length=1)
+    is_correct: bool
+    score: Optional[float] = 1.0
+
+
+class ScheduleReviewRequest(BaseModel):
+    concept_id: str = Field(..., min_length=1)
+    question_text: str = Field(..., min_length=1)
+    question_id: Optional[str] = None
+    review_type: Optional[str] = "concept"
+
+
+class GradeReviewRequest(BaseModel):
+    quality: int = Field(..., ge=0, le=5)
+
+
+class GenerateStudyPackRequest(BaseModel):
+    video_id: str = Field(..., min_length=1)
+
+
+class AnalyzeCodeRequest(BaseModel):
+    text: str = Field(..., min_length=1)
+    timestamp: Optional[float] = 0.0
+
+
+class AnalyzeMathRequest(BaseModel):
+    text: str = Field(..., min_length=1)
+    timestamp: Optional[float] = 0.0
+
+
+class AdjustQuotaRequest(BaseModel):
+    user_id: str
+    max_video_duration_minutes: Optional[int] = None
+    max_storage_bytes: Optional[int] = None
+    max_monthly_jobs: Optional[int] = None
+    max_monthly_queries: Optional[int] = None
+
+
+class VideoChatRequest(BaseModel):
+    video_id: str = Field(..., min_length=1)
+    message: str = Field(..., min_length=1)
+    history: Optional[List[Dict[str, str]]] = Field(default_factory=list)
+
+
+@app.post("/api/v1/collections")
+async def create_collection(
+    req: CreateCollectionRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    coll = global_collection_manager.create_collection(
+        user_id=current_user["id"],
+        title=req.title,
+        description=req.description or "",
+        video_ids=req.video_ids,
+    )
+    return coll.model_dump()
+
+
+@app.get("/api/v1/collections")
+async def list_collections(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    colls = global_collection_manager.list_user_collections(current_user["id"])
+    return {"collections": [c.model_dump() for c in colls]}
+
+
+@app.get("/api/v1/collections/{collection_id}")
+async def get_collection(
+    collection_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    coll = global_collection_manager.get_collection(collection_id)
+    if not coll:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    verify_resource_ownership(coll.user_id, current_user, "collection")
+    return coll.model_dump()
+
+
+@app.post("/api/v1/collections/{collection_id}/videos")
+async def add_video_to_collection(
+    collection_id: str,
+    req: AddVideoToCollectionRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    coll = global_collection_manager.get_collection(collection_id)
+    if not coll:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    verify_resource_ownership(coll.user_id, current_user, "collection")
+    updated = global_collection_manager.add_video_to_collection(collection_id, req.video_id)
+    return updated.model_dump()
+
+
+@app.post("/api/v1/collections/{collection_id}/search")
+async def search_collection(
+    collection_id: str,
+    req: CollectionSearchRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    coll = global_collection_manager.get_collection(collection_id)
+    if not coll:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    verify_resource_ownership(coll.user_id, current_user, "collection")
+    results = global_collection_manager.search_collection(collection_id, req.query, k=req.k or 5)
+    return {"results": [r.model_dump() for r in results]}
+
+
+@app.get("/api/v1/collections/{collection_id}/contradictions")
+async def detect_collection_contradictions(
+    collection_id: str,
+    concept: str = Query(..., min_length=1),
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    coll = global_collection_manager.get_collection(collection_id)
+    if not coll:
+        raise HTTPException(status_code=404, detail="Collection not found")
+    verify_resource_ownership(coll.user_id, current_user, "collection")
+    contradictions = global_collection_manager.detect_cross_video_contradictions(collection_id, concept)
+    return {"contradictions": contradictions}
+
+
+@app.post("/api/v1/reasoning/compare")
+async def compare_concepts(
+    req: CompareConceptsRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    result = global_reasoning_engine.compare_concepts(req.concept_a, req.concept_b)
+    return result.model_dump()
+
+
+@app.post("/api/v1/reasoning/prerequisites")
+async def check_prerequisites(
+    req: PrerequisiteCheckRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    result = global_reasoning_engine.analyze_prerequisite_readiness(req.target_concept, req.mastered_concepts)
+    return result.model_dump()
+
+
+@app.post("/api/v1/reasoning/study-plan")
+async def generate_study_plan(
+    req: StudyPlanRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    plan = global_reasoning_engine.synthesize_study_plan(
+        req.target_concept,
+        req.mastered_concepts,
+        req.available_time_minutes or 60,
+    )
+    return plan
+
+
+@app.get("/api/v1/learning/mastery/{concept_id}")
+async def get_concept_mastery(
+    concept_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    rec = global_mastery_tracker.get_or_create_record(current_user["id"], concept_id, concept_id)
+    return rec.model_dump()
+
+
+@app.post("/api/v1/learning/mastery/calibrate")
+async def record_mastery_attempt(
+    req: CalibrateMasteryRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    rec = global_mastery_tracker.record_attempt(
+        current_user["id"],
+        req.concept_id,
+        req.concept_name,
+        req.is_correct,
+        req.score or 1.0,
+    )
+    return rec.model_dump()
+
+
+@app.post("/api/v1/learning/reviews/schedule")
+async def schedule_review(
+    req: ScheduleReviewRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    item = global_spaced_scheduler.schedule_initial_review(
+        user_id=current_user["id"],
+        concept_id=req.concept_id,
+        question_text=req.question_text,
+        question_id=req.question_id,
+        review_type=req.review_type or "concept",
+    )
+    return item.model_dump()
+
+
+@app.get("/api/v1/learning/reviews/due")
+async def get_due_reviews(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    items = global_spaced_scheduler.get_due_reviews(current_user["id"])
+    return {"due_reviews": [item.model_dump() for item in items]}
+
+
+@app.post("/api/v1/learning/reviews/{item_id}/grade")
+async def grade_review_item(
+    item_id: str,
+    req: GradeReviewRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    updated = global_spaced_scheduler.process_review_result(item_id, req.quality)
+    return updated.model_dump()
+
+
+@app.post("/api/v1/study-materials/generate")
+async def generate_study_materials(
+    req: GenerateStudyPackRequest,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    video = _get_and_check_video_access(req.video_id, current_user)
+    with SessionLocal() as db:
+        seg_records = (
+            db.query(TranscriptSegmentRecord)
+            .filter(TranscriptSegmentRecord.video_id == req.video_id)
+            .order_by(TranscriptSegmentRecord.start_time.asc())
+            .all()
+        )
+        entity_records = (
+            db.query(KnowledgeEntityRecord)
+            .filter(KnowledgeEntityRecord.video_id == req.video_id)
+            .all()
+        )
+    from app.domain.models import TranscriptSegment, ConceptNode
+    segments = [
+        TranscriptSegment(
+            start_time=s.start_time,
+            end_time=s.end_time,
+            text=s.text,
+            speaker=s.speaker,
+            speaker_role=s.speaker_role,
+            importance=s.importance,
+        )
+        for s in seg_records
+    ]
+    concepts = [
+        ConceptNode(
+            id=e.id,
+            name=e.name,
+            definition=e.definition or "",
+            category=e.entity_type,
+            importance=e.importance,
+        )
+        for e in entity_records
+    ]
+    pack = global_study_material_gen.generate_pack(
+        video_id=video.id,
+        video_title=video.title,
+        segments=segments,
+        concepts=concepts,
+    )
+    return pack.model_dump()
+
+
+@app.post("/api/v1/code/analyze")
+async def analyze_code_snippet(
+    req: AnalyzeCodeRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    snippet = global_code_engine.detect_and_analyze(req.text, req.timestamp or 0.0)
+    if not snippet:
+        return {"is_code": False, "analysis": None}
+    return {"is_code": True, "analysis": snippet.model_dump()}
+
+
+@app.post("/api/v1/math/equations")
+async def analyze_math_formula(
+    req: AnalyzeMathRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    derivation = global_math_engine.detect_and_structure(req.text, req.timestamp or 0.0)
+    if not derivation:
+        return {"is_math": False, "derivation": None}
+    return {"is_math": True, "derivation": derivation.model_dump()}
+
+
+@app.get("/api/v1/admin/telemetry")
+async def get_admin_telemetry(
+    current_user: Dict[str, Any] = Depends(require_role([UserRole.ADMIN])),
+):
+    with SessionLocal() as db:
+        telemetry = global_admin_service.get_system_telemetry(db)
+    return telemetry
+
+
+@app.get("/api/v1/admin/quotas/{user_id}")
+async def get_user_quota(
+    user_id: str,
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    role_str = current_user.get("role")
+    is_admin = role_str in (UserRole.ADMIN.value, "ADMIN")
+    if not is_admin and current_user["id"] != user_id:
+        raise HTTPException(status_code=403, detail="Forbidden: You cannot inspect other users' quotas")
+    quota = global_quota_manager.get_or_create_quota(user_id, role_str or "STUDENT")
+    return quota.model_dump()
+
+
+@app.post("/api/v1/admin/quotas/adjust")
+async def adjust_user_quota(
+    req: AdjustQuotaRequest,
+    current_user: Dict[str, Any] = Depends(require_role([UserRole.ADMIN])),
+):
+    quota = global_quota_manager.get_or_create_quota(req.user_id)
+    if req.max_video_duration_minutes is not None:
+        quota.max_video_duration_minutes = req.max_video_duration_minutes
+    if req.max_storage_bytes is not None:
+        quota.max_storage_bytes = req.max_storage_bytes
+    if req.max_monthly_jobs is not None:
+        quota.max_monthly_jobs = req.max_monthly_jobs
+    if req.max_monthly_queries is not None:
+        quota.max_monthly_queries = req.max_monthly_queries
+    return quota.model_dump()
+
+
+@app.get("/api/v1/governance/export")
+async def export_user_privacy_data(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    with SessionLocal() as db:
+        export_pkg = global_governance_manager.export_user_data(current_user["id"], db)
+    return export_pkg
+
+
+@app.delete("/api/v1/governance/me")
+async def erase_current_user_account(
+    current_user: Dict[str, Any] = Depends(get_current_user),
+):
+    with SessionLocal() as db:
+        result = global_governance_manager.delete_user_data(current_user["id"], db)
+    return result
+
+
+@app.post("/api/v1/video-chat")
+async def video_chat_endpoint(
+    req: VideoChatRequest,
+    current_user: Optional[Dict[str, Any]] = Depends(get_optional_current_user),
+):
+    ev_pack = global_search_engine.retrieve_evidence_pack(req.message, video_filter=req.video_id)
+    rag_resp = global_rag_engine.answer_query(req.message, video_filter=req.video_id)
+    return {
+        "video_id": req.video_id,
+        "query": req.message,
+        "answer": rag_resp.answer,
+        "confidence": rag_resp.confidence,
+        "citations": [c.model_dump() for c in rag_resp.citations],
+        "evidence_count": len(ev_pack.items),
+        "key_entities": ev_pack.key_entities,
+        "contradictions_detected": rag_resp.contradictions_detected,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────

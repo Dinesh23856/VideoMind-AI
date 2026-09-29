@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""VideoMind-AI Command Line Interface: process, search, ask AI tutor, export artifacts."""
+"""VideoMind-AI Command Line Interface: process, search, ask AI tutor, export artifacts, courses, and admin."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ import json
 import sys
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 if sys.platform == "win32":
     try:
@@ -31,6 +31,8 @@ from app.orchestration.tasks import process_video_job  # noqa: E402
 from app.retrieval.hybrid_search import HybridSearchEngine  # noqa: E402
 from app.rag.engine import RAGEngine  # noqa: E402
 from app.tutor.engine import AITutorEngine, TutorMode  # noqa: E402
+from app.knowledge.graph import KnowledgeGraph  # noqa: E402
+from app.domain.models import ConceptNode, TranscriptSegment  # noqa: E402
 from app.artifacts.exporters import (  # noqa: E402
     AnkiExporter,
     DocxExporter,
@@ -68,7 +70,7 @@ def process(
         console=console,
         disable=json_output,
     ) as progress:
-        task = progress.add_task("Running knowledge pipeline…", total=None)
+        task = progress.add_task("Running knowledge pipeline...", total=None)
         try:
             result = process_video_job(
                 job_id=job_id,
@@ -101,7 +103,6 @@ def search(
     if job_dir and Path(job_dir).exists():
         tr_path = Path(job_dir) / "transcript.json"
         if tr_path.exists():
-            from app.domain.models import TranscriptSegment
             data = json.loads(tr_path.read_text(encoding="utf-8"))
             segs = [TranscriptSegment(**s) for s in data]
             engine.index_segments("job_local", "Lecture", segs)
@@ -129,7 +130,6 @@ def ask(
     if job_dir and Path(job_dir).exists():
         tr_path = Path(job_dir) / "transcript.json"
         if tr_path.exists():
-            from app.domain.models import TranscriptSegment
             data = json.loads(tr_path.read_text(encoding="utf-8"))
             segs = [TranscriptSegment(**s) for s in data]
             engine.index_segments("job_local", "Lecture", segs)
@@ -169,10 +169,68 @@ def export(
         "docx": (DocxExporter(), "notes.docx"),
         "json": (JsonExporter(), "knowledge.json"),
     }
-    exporter, out_name = exporters.get(format.lower(), (MarkdownExporter(), "notes.md"))
-    target = j_path / out_name
-    out_file = exporter.export("Lecture Notes", data, target)
-    console.print(f"[green]Successfully exported {format.upper()} to[/green] {out_file}")
+
+    if format not in exporters:
+        console.print(f"[red]Unknown format '{format}'.[/red] Choices: {list(exporters.keys())}")
+        raise typer.Exit(1)
+
+    exporter, filename = exporters[format]
+    out_file = j_path / filename
+    exporter.export("Lecture", data, out_file)
+    console.print(f"[green]Successfully exported:[/green] {out_file}")
+
+
+@app.command()
+def course(
+    title: str = typer.Argument(..., help="Course title"),
+    video_ids: List[str] = typer.Option([], "--video-id", help="Video IDs to include in course"),
+):
+    """Synthesize a structured multi-unit course curriculum."""
+    from app.learning.course import CourseGenerator
+    generator = CourseGenerator()
+    course_obj = generator.generate_course(
+        course_id=f"course_{uuid.uuid4().hex[:6]}",
+        title=title,
+        video_ids=video_ids or ["vid_default"],
+    )
+    console.print(f"[bold green]Course Generated:[/bold green] {course_obj.title} ({course_obj.difficulty})")
+    for mod in course_obj.modules:
+        console.print(f"  • Module: [bold]{mod.title}[/bold] ({len(mod.lessons)} lessons)")
+
+
+@app.command()
+def graph(
+    concept: Optional[str] = typer.Option(None, help="Concept to inspect prerequisites for"),
+):
+    """Display Knowledge Graph information or prerequisite learning paths."""
+    from app.knowledge.graph import KnowledgeGraph
+    kg = KnowledgeGraph()
+    kg.add_concept(ConceptNode(id="c1", name="Calculus", definition="Study of continuous change"))
+    kg.add_concept(ConceptNode(id="c2", name="Gradient Descent", definition="Optimization algorithm"))
+    kg.add_edge("c2", "c1", relation_type="PREREQUISITE_OF")
+
+    if concept:
+        prereqs = kg.get_prerequisites(concept)
+        console.print(f"Prerequisites for [bold cyan]{concept}[/bold cyan]: {[p.name for p in prereqs]}")
+    else:
+        path = kg.get_topological_learning_path()
+        console.print(f"Topological Learning Path: {[c.name for c in path]}")
+
+
+@app.command()
+def admin():
+    """Display operational telemetry and system health."""
+    from app.database.session import SessionLocal, init_db
+    from app.admin.console import AdminConsoleService
+
+    init_db()
+    db = SessionLocal()
+    try:
+        service = AdminConsoleService()
+        telemetry = service.get_system_telemetry(db)
+        console.print_json(json.dumps(telemetry, indent=2))
+    finally:
+        db.close()
 
 
 if __name__ == "__main__":

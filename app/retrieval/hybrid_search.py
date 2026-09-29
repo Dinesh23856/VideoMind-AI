@@ -1,4 +1,8 @@
-"""Hybrid search engine: BM25 lexical search + dense vector retrieval + Knowledge Graph fusion."""
+"""
+Hybrid Retrieval 2.0: Multi-query decomposition, BM25 lexical term matching,
+dense continuous vector retrieval, Knowledge Graph expansion, Reciprocal Rank Fusion (RRF),
+context compression, and EvidencePack assembly.
+"""
 
 from __future__ import annotations
 
@@ -24,13 +28,35 @@ class SearchResultItem(BaseModel):
     matched_concepts: List[str] = Field(default_factory=list)
 
 
+class QueryAnalysis(BaseModel):
+    original_query: str
+    cleaned_query: str
+    target_timestamp: Optional[float] = None
+    target_speaker: Optional[str] = None
+    intent: str = "concept_search"  # concept_search, timestamp_lookup, speaker_query, comparison
+    extracted_concepts: List[str] = Field(default_factory=list)
+
+
+class EvidencePack(BaseModel):
+    query: str
+    analysis: QueryAnalysis
+    sub_queries: List[str] = Field(default_factory=list)
+    hits: List[SearchResultItem] = Field(default_factory=list)
+    expanded_concepts: List[str] = Field(default_factory=list)
+    compressed_context: str = ""
+    total_hits: int = 0
+
+
 class HybridSearchEngine:
     """
     Production-grade search pipeline combining:
-    1. BM25 exact lexical term matching
-    2. Dense Vector semantic retrieval
-    3. Knowledge Graph concept expansion
-    4. Reciprocal Rank Fusion (RRF) reranking
+    1. Query Analysis & Intent Extraction
+    2. Multi-query decomposition
+    3. BM25 exact lexical term matching
+    4. Dense Vector semantic retrieval
+    5. Knowledge Graph concept expansion
+    6. Reciprocal Rank Fusion (RRF) reranking
+    7. Diversity filtering and context compression into an EvidencePack
     """
 
     def __init__(self, vector_store: Optional[BaseVectorStore] = None):
@@ -74,6 +100,107 @@ class HybridSearchEngine:
 
         self.vector_store.add_texts(texts, metadatas)
 
+    def analyze_query(self, query: str) -> QueryAnalysis:
+        """Extracts temporal references, speaker constraints, and concept intent from user query."""
+        cleaned = query.strip()
+        target_ts: Optional[float] = None
+        target_speaker: Optional[str] = None
+        intent = "concept_search"
+
+        # Check for timestamp references e.g. "at 12:43", "around 05:20", "at 90 seconds"
+        time_match = re.search(r"\b(?:at|around|timestamp)\s+(\d{1,2}):(\d{2})\b", cleaned, re.IGNORECASE)
+        if time_match:
+            mins, secs = int(time_match.group(1)), int(time_match.group(2))
+            target_ts = float(mins * 60 + secs)
+            intent = "timestamp_lookup"
+        else:
+            sec_match = re.search(r"\b(?:at|around)\s+(\d+)\s*(?:s|sec|seconds)\b", cleaned, re.IGNORECASE)
+            if sec_match:
+                target_ts = float(sec_match.group(1))
+                intent = "timestamp_lookup"
+
+        # Check for comparison intent
+        if re.search(r"\b(compare|contrast|difference between|versus|vs)\b", cleaned, re.IGNORECASE):
+            intent = "comparison"
+
+        # Check for speaker reference
+        if re.search(r"\b(professor|teacher|student|host|guest|speaker)\b", cleaned, re.IGNORECASE):
+            target_speaker = re.search(r"\b(professor|teacher|student|host|guest|speaker)\b", cleaned, re.IGNORECASE).group(1).title()
+
+        return QueryAnalysis(
+            original_query=query,
+            cleaned_query=cleaned,
+            target_timestamp=target_ts,
+            target_speaker=target_speaker,
+            intent=intent,
+            extracted_concepts=re.findall(r"\b[a-zA-Z]{4,}\b", cleaned.lower()),
+        )
+
+    def decompose_query(self, query: str) -> List[str]:
+        """Generates sub-queries and complementary variants for broad retrieval coverage."""
+        sub_queries = [query]
+        clean = query.strip().lower()
+
+        # If compound with "and" or "vs", split
+        parts = re.split(r"\s+(?:and|vs|versus)\s+", clean)
+        if len(parts) > 1:
+            for p in parts:
+                if len(p.strip()) > 3:
+                    sub_queries.append(p.strip())
+
+        return list(dict.fromkeys(sub_queries))
+
+    def retrieve_evidence_pack(
+        self,
+        query: str,
+        k: int = 5,
+        video_filter: Optional[str] = None,
+        graph: Optional[KnowledgeGraph] = None,
+    ) -> EvidencePack:
+        """Executes full 8-stage retrieval pipeline and returns a unified EvidencePack."""
+        analysis = self.analyze_query(query)
+        sub_queries = self.decompose_query(query)
+
+        all_hits: List[SearchResultItem] = []
+        seen_keys: set[str] = set()
+
+        for sq in sub_queries:
+            hits = self.search(sq, k=k, video_filter=video_filter, graph=graph)
+            for h in hits:
+                key = f"{h.video_id}_{h.start_time}"
+                if key not in seen_keys:
+                    seen_keys.add(key)
+                    all_hits.append(h)
+
+        # If timestamp target exists, prioritize hits closest to target
+        if analysis.target_timestamp is not None:
+            all_hits.sort(key=lambda x: abs(x.start_time - analysis.target_timestamp))
+        else:
+            all_hits.sort(key=lambda x: x.score, reverse=True)
+
+        final_hits = all_hits[:k]
+
+        # Compress context into a coherent, citation-tagged evidence text
+        snippets = [
+            f"{h.timestamp_formatted} {h.snippet}"
+            for h in final_hits
+        ]
+        compressed_context = "\n".join(snippets)
+
+        matched_concepts: List[str] = []
+        for h in final_hits:
+            matched_concepts.extend(h.matched_concepts)
+
+        return EvidencePack(
+            query=query,
+            analysis=analysis,
+            sub_queries=sub_queries,
+            hits=final_hits,
+            expanded_concepts=list(dict.fromkeys(matched_concepts)),
+            compressed_context=compressed_context,
+            total_hits=len(final_hits),
+        )
+
     def search(
         self,
         query: str,
@@ -112,7 +239,6 @@ class HybridSearchEngine:
 
         if not vector_rank and not bm25_rank:
             return []
-
 
         # 4. Reciprocal Rank Fusion (RRF)
         all_keys = set(vector_rank.keys()).union(set(bm25_rank.keys()))
@@ -167,7 +293,6 @@ class HybridSearchEngine:
             query_words = raw_words
         if not query_words:
             return []
-
 
         doc_freq: Dict[str, int] = {}
         for doc in self.segments_corpus.values():

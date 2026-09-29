@@ -1,0 +1,21 @@
+{
+  "evaluation_timestamp": "2026-09-29T17:21:20Z",
+  "overall_quality_score": 100.0,
+  "retrieval": {
+    "queries_evaluated": 3,
+    "recall_at_3": 1.0,
+    "mean_reciprocal_rank": 1.0
+  },
+  "rag_grounding": {
+    "supported_query_confidence": 0.95,
+    "citation_accuracy": 1.0,
+    "unsupported_query_abstention": true,
+    "hallucination_rate": 0.0
+  },
+  "ai_tutor": {
+    "total_modes": 8,
+    "modes_functioning": 8,
+    "mode_coverage": 1.0
+  },
+  "benchmark_status": "PASSED"
+}
