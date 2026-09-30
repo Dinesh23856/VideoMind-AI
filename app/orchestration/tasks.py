@@ -101,7 +101,50 @@ def _download_uploaded_file(job_id: str, destination: str) -> str:
     return str(dest_path)
 
 
+def _get_stage_checkpoint(job_id: str, stage: str) -> Optional[Dict[str, Any]]:
+    """Retrieve completed stage checkpoint if available to allow resumed execution."""
+    try:
+        with SessionLocal() as db:
+            rec = (
+                db.query(StageCheckpointRecord)
+                .filter(StageCheckpointRecord.job_id == job_id, StageCheckpointRecord.stage == stage)
+                .order_by(StageCheckpointRecord.id.desc())
+                .first()
+            )
+            if rec and rec.completed_at and rec.data_json:
+                return json.loads(rec.data_json)
+    except Exception as exc:
+        logger.debug(f"Stage checkpoint lookup failed: {exc}")
+    return None
+
+
+def _record_stage_checkpoint(
+    job_id: str,
+    stage: str,
+    started_at: float,
+    completed_at: Optional[float] = None,
+    data: Optional[Any] = None,
+    error: Optional[str] = None,
+) -> None:
+    """Persist stage checkpoint record in database for auditability and recovery."""
+    try:
+        with SessionLocal() as db:
+            cp = StageCheckpointRecord(
+                job_id=job_id,
+                stage=stage,
+                started_at=started_at,
+                completed_at=completed_at,
+                data_json=json.dumps(data, ensure_ascii=False) if data is not None else None,
+                error_message=error,
+            )
+            db.add(cp)
+            db.commit()
+    except Exception as exc:
+        logger.debug(f"Failed to record stage checkpoint: {exc}")
+
+
 @shared_task(bind=True, name="process_video_job")
+
 def process_video_job(
     self,
     job_id: str,
@@ -239,10 +282,25 @@ def process_video_job(
             if not raw_segments:
                 raise RuntimeError("No transcript segments produced.")
 
+            _record_stage_checkpoint(
+                job_id=job_id,
+                stage="TRANSCRIBING",
+                started_at=start_time,
+                completed_at=time.time(),
+                data={"segments_count": len(raw_segments)},
+            )
+
             # Stage 4: Diarization & Audio Intelligence
             _publish(job_id, {"status": "DIARIZING", "progress": 42, "message": "Classifying speakers and conversational turns"})
             diarizer = SpeakerDiarizer()
             rich_segments = diarizer.diarize_segments(raw_segments)
+            _record_stage_checkpoint(
+                job_id=job_id,
+                stage="DIARIZING",
+                started_at=start_time,
+                completed_at=time.time(),
+                data={"rich_segments_count": len(rich_segments)},
+            )
 
             # Stage 5: Multimodal Video Intelligence (Keyframe extraction & OCR)
             visual_frames = []
@@ -284,6 +342,13 @@ def process_video_job(
             with open(md_path, "w", encoding="utf-8") as f_md:
                 f_md.write(markdown)
             result["artifacts"]["markdown"] = md_path
+            _record_stage_checkpoint(
+                job_id=job_id,
+                stage="STRUCTURING",
+                started_at=start_time,
+                completed_at=time.time(),
+                data={"markdown_length": len(markdown)},
+            )
 
             # Stage 7: Knowledge Extraction, Verification & Graph
             _publish(job_id, {"status": "EXTRACTING_KNOWLEDGE", "progress": 78, "message": "Extracting concept graph, formulas, code, and verifying claims"})
@@ -317,14 +382,32 @@ def process_video_job(
             json_path = os.path.join(output_dir, "knowledge.json")
             JsonExporter().export(meta_title, result["knowledge"], json_path)
             result["artifacts"]["json"] = json_path
+            _record_stage_checkpoint(
+                job_id=job_id,
+                stage="EXTRACTING_KNOWLEDGE",
+                started_at=start_time,
+                completed_at=time.time(),
+                data={
+                    "concepts_count": len(knowledge_bundle["concepts"]),
+                    "claims_count": len(knowledge_bundle["claims"]),
+                },
+            )
 
             # Stage 8: Hybrid Search Indexing
             _publish(job_id, {"status": "INDEXING", "progress": 88, "message": "Indexing multimodal transcript into hybrid search vector store"})
             search_engine = HybridSearchEngine()
             search_engine.index_segments(job_id, meta_title, rich_segments)
+            _record_stage_checkpoint(
+                job_id=job_id,
+                stage="INDEXING",
+                started_at=start_time,
+                completed_at=time.time(),
+                data={"indexed_segments_count": len(rich_segments)},
+            )
 
             # Stage 9: Artifact Compilation (Anki, PDF, DOCX, Notion)
             _publish(job_id, {"status": "GENERATING_ARTIFACTS", "progress": 94, "message": "Compiling publication-ready PDF, Anki deck, and DOCX"})
+
 
             # Anki Decks
             try:
@@ -366,6 +449,14 @@ def process_video_job(
                     result["artifacts"]["notion_page_id"] = page["id"]
                 except Exception as notion_err:
                     logger.warning(f"Notion sync skipped: {notion_err}")
+
+            _record_stage_checkpoint(
+                job_id=job_id,
+                stage="ARTIFACTS",
+                started_at=start_time,
+                completed_at=time.time(),
+                data={"artifacts": list(result["artifacts"].keys())},
+            )
 
             # Persist to database if database session available
             try:
@@ -418,6 +509,14 @@ def process_video_job(
         result["title"] = meta_title
         result["duration_seconds"] = duration
 
+        _record_stage_checkpoint(
+            job_id=job_id,
+            stage="COMPLETED",
+            started_at=start_time,
+            completed_at=time.time(),
+            data={"duration_seconds": duration},
+        )
+
         _publish(
             job_id,
             {
@@ -436,6 +535,14 @@ def process_video_job(
         result["status"] = "FAILED"
         result["error"] = str(exc)
         result["traceback"] = tb
+
+        _record_stage_checkpoint(
+            job_id=job_id,
+            stage="FAILED",
+            started_at=start_time,
+            error=str(exc),
+        )
+
 
         try:
             with SessionLocal() as db:

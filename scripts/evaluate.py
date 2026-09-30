@@ -68,9 +68,10 @@ def main():
         "- Verified 3-tier progressive hint scaffolding ladder.",
     ]
 
-    report_path = ROOT / "EVALUATION_REPORT.md"
+    report_path = ROOT / "AI_EVALUATION_REPORT.md"
     report_path.write_text("\n".join(md_lines), encoding="utf-8")
     print(f"\nWritten quantitative report to: {report_path}")
+
 
     json_path = ROOT / "scripts" / "evaluation_results.json"
     json_path.write_text(json.dumps(report, indent=2), encoding="utf-8")

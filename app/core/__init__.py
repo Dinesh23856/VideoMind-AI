@@ -14,6 +14,12 @@ from .errors import (
     ValidationError,
     VideoMindException,
 )
+from .model_router import (
+    ModelRouter,
+    RoutingDecision,
+    RoutingTaskType,
+    get_model_router,
+)
 
 __all__ = [
     "AuthenticationError",
@@ -29,4 +35,9 @@ __all__ = [
     "StorageError",
     "ValidationError",
     "VideoMindException",
+    "ModelRouter",
+    "RoutingDecision",
+    "RoutingTaskType",
+    "get_model_router",
 ]
+

@@ -6,8 +6,11 @@ from __future__ import annotations
 
 import time
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Callable, Dict, List, Optional
 from pydantic import BaseModel, Field
+
+if TYPE_CHECKING:
+    from app.models.registry import ModelRegistry
 
 
 class RoutingTaskType(str, Enum):
@@ -33,9 +36,15 @@ class ModelRouter:
     and provider health. Automatically cascades to secondary providers or deterministic fallbacks.
     """
 
-    def __init__(self, primary_provider: str = "openai", default_model: str = "gpt-4o"):
+    def __init__(
+        self,
+        primary_provider: str = "openai",
+        default_model: str = "gpt-4o",
+        registry: Optional[ModelRegistry] = None,
+    ):
         self.primary_provider = primary_provider
         self.default_model = default_model
+        self.registry = registry
         self.routing_log: List[RoutingDecision] = []
 
     def route_task(
@@ -90,3 +99,20 @@ class ModelRouter:
             )
             self.routing_log.append(decision)
             return fallback_callable()
+
+
+_global_router: Optional[ModelRouter] = None
+
+
+def get_model_router() -> ModelRouter:
+    """Returns global ModelRouter instance with registered model capabilities."""
+    global _global_router
+    if _global_router is None:
+        try:
+            from app.models.registry import ModelRegistry
+            registry = ModelRegistry()
+        except Exception:
+            registry = None
+        _global_router = ModelRouter(registry=registry)
+    return _global_router
+

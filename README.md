@@ -30,7 +30,7 @@
   - Direct Notion workspace sync
 - **Enterprise Security**: SSRF IP-range & metadata blocking, prompt-injection delimiter fencing, and traversal-protected storage.
 
-See [PRODUCTION_REALITY_MATRIX.md](PRODUCTION_REALITY_MATRIX.md) for transparent classification of all components (`VERIFIED`, `FALLBACK`, `NOT VERIFIED`).
+See [PLATFORM_CAPABILITY_MATRIX.md](PLATFORM_CAPABILITY_MATRIX.md) for transparent classification of all components (`VERIFIED`, `FALLBACK`, `NOT VERIFIED`).
 
 ---
 
@@ -150,7 +150,7 @@ python scripts/cli.py export ./output/<job_id> --format docx
 
 ## 🧪 Comprehensive Verification & Testing
 
-### 1. Full Automated Pytest Suite (38 tests)
+### 1. Full Automated Pytest Suite (102 tests)
 ```bash
 pytest tests/ -v
 ```
@@ -162,22 +162,27 @@ Validates:
 - SSRF loopback, cloud metadata & path traversal sanitization
 - OpenXML `.docx` byte validation, Anki, WebVTT, and SRT exports
 - Local and S3 storage fail-fast behavior
+- Multi-video collections, cross-media RAG, and knowledge versioning
+- Autonomous agents, Allen's interval algebra, and GDPR data governance
 
-### 2. Automated Production Reality Gates (9 Gates)
+### 2. Automated Production Reality Gates (16 Gates)
 ```bash
 python scripts/verify_production.py
 ```
-Executes all 9 live integration reality gates and outputs `scripts/reality_gates_report.json`.
+Executes all 16 live integration reality gates and outputs `scripts/reality_gates_report.json`.
 
 ---
 
 ## 📖 Documentation
 
-- [Production Reality Matrix](PRODUCTION_REALITY_MATRIX.md)
-- [System Architecture](docs/architecture.md)
+- [Platform Capability Matrix](PLATFORM_CAPABILITY_MATRIX.md)
+- [System Architecture](AI_SYSTEM_ARCHITECTURE.md)
+- [Evidence Architecture](EVIDENCE_ARCHITECTURE.md)
+- [AI Benchmark & Evaluation Report](AI_EVALUATION_REPORT.md)
 - [REST API Reference](docs/api.md)
 - [Security & Threat Mitigation](docs/security.md)
 - [Deployment Guide (Render & Docker)](DEPLOY_RENDER.md)
+
 
 ---
 

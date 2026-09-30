@@ -439,13 +439,15 @@
             <h2>Socratic AI Tutor</h2>
             <p style="color:var(--muted); font-size:0.85rem;">Grounded explanations and progressive hints with timestamp citations.</p>
           </div>
-          <select id="tutorModeSelect" style="width:200px; margin-bottom:0;">
+          <select id="tutorModeSelect" style="width:240px; margin-bottom:0;">
             <option value="Beginner">Beginner (Analogies)</option>
             <option value="Intermediate" selected>Intermediate (Balanced)</option>
             <option value="Advanced">Advanced (Theory)</option>
-            <option value="Developer">Developer (Code)</option>
+            <option value="Expert">Expert (Mathematical Rigor)</option>
             <option value="Interview">Technical Interview</option>
             <option value="Exam">Exam Prep (High Yield)</option>
+            <option value="Research">Research & Literature</option>
+            <option value="Developer">Developer (Code & Systems)</option>
           </select>
         </div>
 
@@ -458,6 +460,7 @@
         <div style="display:flex; gap:0.75rem; margin-top:1rem;">
           <input type="text" id="tutorInput" placeholder="Ask a question or request a hint..." style="margin-bottom:0;" onkeydown="if(event.key==='Enter') sendTutorMessage()" />
           <button class="btn-primary" style="width:120px;" onclick="sendTutorMessage()">Ask Tutor</button>
+          <button class="btn-primary" style="width:140px; background:var(--surface-elevated); border:1px solid var(--border);" onclick="requestTutorHint()">💡 Request Hint</button>
         </div>
       </div>
     </section>
@@ -465,15 +468,23 @@
     <!-- TAB 4: KNOWLEDGE GRAPH -->
     <section id="tab-graph" class="tab-content">
       <div class="card">
-        <h2>Extracted Knowledge Graph</h2>
-        <p style="color:var(--muted); font-size:0.9rem; margin-bottom:1rem;">
-          Concepts, formulas, definitions, and prerequisite dependencies.
-        </p>
-        <div id="graphCanvas" style="height:550px; background:var(--bg); border:1px solid var(--border); border-radius:8px; display:flex; align-items:center; justify-content:center; color:var(--muted);">
-          Interactive graph elements will appear here after video processing.
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+          <div>
+            <h2>Extracted Knowledge Graph</h2>
+            <p style="color:var(--muted); font-size:0.9rem;">
+              Concepts, formulas, definitions, and prerequisite dependencies.
+            </p>
+          </div>
+          <button class="btn-primary" style="width:140px;" onclick="refreshKnowledgeGraph()">Refresh Graph</button>
+        </div>
+        <div id="graphCanvas" style="min-height:550px; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:1.5rem; overflow-y:auto;">
+          <div style="text-align:center; color:var(--muted); padding-top:150px;">
+            Interactive graph elements will appear here after video processing.
+          </div>
         </div>
       </div>
     </section>
+
 
     <!-- TAB 5: HYBRID SEARCH -->
     <section id="tab-search" class="tab-content">
@@ -572,7 +583,9 @@
             document.getElementById('btnSubmit').disabled = false;
             displayArtifacts(jobId);
             loadJobIntoWorkspace(jobId);
+            renderKnowledgeGraph(jobId);
           } else if (d.status === 'FAILED') {
+
             eventSource.close();
             document.getElementById('btnSubmit').disabled = false;
             alert("Pipeline failed: " + (d.message || d.error));
@@ -711,6 +724,87 @@
         });
       } catch (err) {
         c.innerHTML = `<div style="color:var(--danger); text-align:center;">Search error: ${err.message}</div>`;
+      }
+    }
+
+    let hintCounter = 0;
+
+    async function requestTutorHint() {
+      const input = document.getElementById('tutorInput');
+      const q = input.value.trim() || "What are the core technical concepts?";
+      hintCounter += 1;
+
+      const feed = document.getElementById('chatFeed');
+      const userBubble = document.createElement('div');
+      userBubble.className = 'chat-bubble chat-user';
+      userBubble.textContent = `💡 Requesting Hint (Tier ${hintCounter}): ${q}`;
+      feed.appendChild(userBubble);
+      input.value = '';
+      feed.scrollTop = feed.scrollHeight;
+
+      const mode = document.getElementById('tutorModeSelect').value;
+
+      try {
+        const res = await fetch('/api/v1/tutor/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            message: `Give me a progressive hint on: ${q}`,
+            mode,
+            video_id: activeJobId,
+            hints_count: hintCounter,
+          }),
+        });
+        const data = await res.json();
+        const tutorBubble = document.createElement('div');
+        tutorBubble.className = 'chat-bubble chat-tutor';
+        tutorBubble.innerHTML = (data.tutor_reply || '').replace(/\n/g, '<br>');
+        feed.appendChild(tutorBubble);
+        feed.scrollTop = feed.scrollHeight;
+      } catch (err) {
+        alert("Failed to communicate with AI Tutor: " + err.message);
+      }
+    }
+
+    async function refreshKnowledgeGraph() {
+      if (!activeJobId) {
+        alert("No active video job loaded yet. Run a pipeline job first.");
+        return;
+      }
+      renderKnowledgeGraph(activeJobId);
+    }
+
+    async function renderKnowledgeGraph(jobId) {
+      const canvas = document.getElementById('graphCanvas');
+      canvas.innerHTML = '<div style="color:var(--muted); text-align:center; padding-top:100px;">Loading extracted concepts & knowledge graph...</div>';
+      try {
+        const res = await fetch(`/api/v1/knowledge/graph/${encodeURIComponent(jobId)}`);
+        if (!res.ok) throw new Error("Could not load knowledge graph");
+        const kgData = await res.json();
+        const elements = kgData.elements || [];
+
+        if (elements.length > 0) {
+          let html = '<div style="display:flex; flex-direction:column; gap:1.5rem;">';
+          html += `<div><h3 style="margin-bottom:0.75rem; color:var(--accent);">Technical Concepts (${kgData.concepts_count || elements.length})</h3><div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:1rem;">`;
+          elements.forEach(el => {
+            const d = el.data || {};
+            html += `
+              <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1rem;">
+                <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem;">
+                  <strong style="color:var(--text);">${d.label || 'Concept'}</strong>
+                  <span style="background:rgba(88,166,255,0.15); color:var(--accent); padding:0.15rem 0.4rem; border-radius:4px; font-size:0.75rem;">Imp: ${d.importance || 0.8}</span>
+                </div>
+                <p style="font-size:0.85rem; color:var(--muted); line-height:1.4;">${d.definition || 'Key technical concept extracted from lecture.'}</p>
+              </div>
+            `;
+          });
+          html += '</div></div></div>';
+          canvas.innerHTML = html;
+        } else {
+          canvas.innerHTML = '<div style="text-align:center; color:var(--muted); padding-top:150px;">No concepts found in this lecture artifact.</div>';
+        }
+      } catch (err) {
+        canvas.innerHTML = `<div style="text-align:center; color:var(--danger); padding-top:150px;">Failed to render graph: ${err.message}</div>`;
       }
     }
   </script>

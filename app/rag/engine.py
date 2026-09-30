@@ -21,6 +21,7 @@ class RAGCitation(BaseModel):
     video_id: str
     video_title: str
     snippet: str
+    grounding_status: str = "SUPPORTED"  # SUPPORTED, PARTIALLY_SUPPORTED, UNVERIFIED
 
 
 class RAGResponse(BaseModel):
@@ -87,9 +88,16 @@ class RAGEngine:
                 retrieved_context_count=0,
             )
 
-        # 3. Assemble Citations
+        # 3. Assemble Citations with Grounding Status Tags
         citations: List[RAGCitation] = []
         for h in hits:
+            if h.score >= 1.5:
+                status = "SUPPORTED"
+            elif h.score >= 0.8:
+                status = "PARTIALLY_SUPPORTED"
+            else:
+                status = "UNVERIFIED"
+
             citations.append(
                 RAGCitation(
                     timestamp_start=h.start_time,
@@ -98,8 +106,10 @@ class RAGEngine:
                     video_id=h.video_id,
                     video_title=h.video_title,
                     snippet=h.snippet,
+                    grounding_status=status,
                 )
             )
+
 
         # 4. Check for Contradictions across retrieved snippets
         contradictions: List[str] = []
