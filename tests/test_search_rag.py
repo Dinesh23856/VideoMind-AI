@@ -44,3 +44,25 @@ def test_hybrid_search_and_rag():
     hint_resp = tutor.interact("Give me a hint on cross-validation", mode=TutorMode.EXAM, context_hints_given=0)
     assert hint_resp.hint is not None
     assert "Hint 1" in hint_resp.hint
+
+
+def test_dense_vector_store_integration():
+    from app.embeddings.provider import LocalDenseEmbeddingProvider
+    from app.retrieval.vector_store import InMemoryVectorStore
+
+    provider = LocalDenseEmbeddingProvider(dimension=128)
+    store = InMemoryVectorStore(embedding_provider=provider)
+    texts = [
+        "Backpropagation computes gradients of loss with respect to neural network weights.",
+        "Convolutional layers apply spatial filters over input image feature maps.",
+        "Relational databases use B-tree indexing for logarithmic lookups.",
+    ]
+    metas = [{"topic": "backprop"}, {"topic": "cnn"}, {"topic": "db"}]
+    doc_ids = store.add_texts(texts, metas)
+    assert len(doc_ids) == 3
+
+    # Semantic search with query
+    results = store.search("gradient backpropagation network", k=1)
+    assert len(results) >= 1
+    assert results[0][0]["topic"] == "backprop"
+    assert results[0][1] > 0.20

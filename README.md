@@ -1,8 +1,7 @@
-# VideoMind AI — Intelligent Video-to-Knowledge OS
+# VideoMind-AI: Multimodal Video-to-Knowledge Operating System
 
-> Commercial-grade, multimodal operating system that transforms dense technical lecture videos, webinars, and documentation into structured knowledge graphs, interactive AI tutoring, and publication-ready educational assets.
+> A commercial-grade multimodal AI operating system that transforms dense technical lecture videos, webinars, code walkthroughs, and academic textbooks into verifiable knowledge graphs, grounded Socratic tutoring, and publication-ready educational assets.
 
-[![CI Pipeline](https://github.com/Dinesh23856/VideoMind-AI/actions/workflows/ci.yml/badge.svg)](https://github.com/Dinesh23856/VideoMind-AI/actions)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115+-009688.svg)](https://fastapi.tiangolo.com)
 [![Celery](https://img.shields.io/badge/Celery-5.4+-37814A.svg)](https://docs.celeryq.dev/)
@@ -11,178 +10,57 @@
 
 ---
 
-## ⚡ Key Capabilities & Verified Architecture
+## ⚡ Key Capabilities
 
-- **Multimodal Video Intelligence**: Differential frame sampling extracts slides, architecture diagrams, code screenshots, and terminal sessions without redundant frame processing.
-- **Audio Intelligence & Speaker Diarization**: Faster-Whisper with VAD segmentation, conversational turn clustering, and speaker role inference (`Professor`, `Student`, `Host`, `Guest`).
-- **Structured Knowledge Graph**: Automatic extraction of technical concepts, definitions, mathematical LaTeX derivations, code blocks, and directional relationships (`USES`, `DEPENDS_ON`, `PREREQUISITE_OF`).
-- **Fact Verification & Evidence Grounding**: Validates factual claims against spoken transcript evidence (`SUPPORTED`, `UNVERIFIED`) with 0% hallucinated citations.
-- **Hybrid Search Engine**: Reciprocal Rank Fusion (RRF) combining BM25 exact lexical search, sparse TF-IDF retrieval, and concept expansion with clickable timestamp intervals.
-- **Socratic AI Tutor**: 8 pedagogical modes (`Beginner`, `Intermediate`, `Advanced`, `Expert`, `Interview`, `Exam`, `Research`, `Developer`) with progressive 3-tier hint ladders.
-- **Course & Syllabus Synthesis**: Automated generation of multi-unit courses and prerequisite learning paths from indexed video libraries.
-- **Multi-Tenant Security & RBAC**: JWT HS256 (RFC 7518 256-bit compliant) authentication, role-based access (`STUDENT`, `TEACHER`, `ADMIN`), and tenant resource isolation.
-- **Multi-Format Publication Exports**:
-  - Publication-ready Word document (`.docx`) with OpenXML styles
-  - Anki flashcard deck (`.apkg`) with Cloze deletions, math, and code
-  - Timestamped Subtitles (`.srt`, `.vtt`)
-  - Executive Markdown notes (`.md`)
-  - Structured Knowledge AST (`.json`)
-  - Direct Notion workspace sync
-- **Enterprise Security**: SSRF IP-range & metadata blocking, prompt-injection delimiter fencing, and traversal-protected storage.
-
-See [PLATFORM_CAPABILITY_MATRIX.md](PLATFORM_CAPABILITY_MATRIX.md) for transparent classification of all components (`VERIFIED`, `FALLBACK`, `NOT VERIFIED`).
-
----
-
-## 🏗 System Architecture
-
-```
-                    VIDEO / URL / FILE UPLOAD
-                                │
-                                ▼
-                ┌──────────────────────────────┐
-                │     Intelligent Ingestion    │
-                │  (yt-dlp captions / ffmpeg)  │
-                └──────────────┬───────────────┘
-                               │
-        ┌──────────────────────┴──────────────────────┐
-        ▼                                             ▼
-┌──────────────────┐                           ┌──────────────────┐
-│  Audio Pipeline  │                           │ Visual Pipeline  │
-│ (16kHz PCM WAV)  │                           │(Keyframe Engine) │
-└────────┬─────────┘                           └────────┬─────────┘
-        ▼                                             ▼
-┌──────────────────┐                           ┌──────────────────┐
-│ ASR & Diarizer   │                           │ Scene Cuts, OCR  │
-│ (Groq/Whisper)   │                           │ Diagram & Code   │
-└────────┬─────────┘                           └────────┬─────────┘
-        │                                             │
-        └──────────────────────┬──────────────────────┘
-                               ▼
-                ┌──────────────────────────────┐
-                │     Multimodal Timeline      │
-                │ (Visual Refs + Transcripts)  │
-                └──────────────┬───────────────┘
-                               ▼
-                ┌──────────────────────────────┐
-                │    Knowledge Extraction      │
-                │  Concepts, Formulas, Code    │
-                └──────────────┬───────────────┘
-                               │
-        ┌──────────────────────┼──────────────────────┐
-        ▼                      ▼                      ▼
-┌──────────────────┐   ┌──────────────────┐   ┌──────────────────┐
-│  Fact Verifier   │   │ Knowledge Graph  │   │  Hybrid Search   │
-│ (Evidence Check) │   │  (Cytoscape/DAG) │   │  (BM25 + Dense)  │
-└────────┬─────────┘   └────────┬─────────┘   └────────┬─────────┘
-        │                      │                      │
-        └──────────────────────┼──────────────────────┘
-                               ▼
-                ┌──────────────────────────────┐
-                │   AI Knowledge & Tutoring    │
-                │   8-Mode Socratic Engine     │
-                └──────────────┬───────────────┘
-                               ▼
-                ┌──────────────────────────────┐
-                │    Artifact Compilation      │
-                │ Anki (.apkg), DOCX, MD, VTT  │
-                └──────────────────────────────┘
-```
+- **Multimodal Video & Audio Perception**: Extracts clean 16kHz audio, samples differential keyframes ($\ge 15\%$ visual distance), extracts OCR slide text, and aligns media on a microsecond interval timeline via Allen's 13 interval relations.
+- **19 Typed Epistemic Knowledge Objects**: Formally parses concepts, definitions, theorems, proofs, equations (LaTeX), algorithms, code snippets, and contradictions into a directed prerequisite multigraph.
+- **Independent Evidence Graph & Trust Calibration**: Decouples assertions from media spans, tracking corroboration and dispute edges alongside calibrated source credibility scores.
+- **Hybrid Retrieval & Grounded RAG**: Combines BM25 exact lexical term matching with continuous dense vector retrieval using Reciprocal Rank Fusion ($k=60$), enforcing verified timestamp interval citations with calibrated refusal on out-of-domain queries.
+- **8-Mode Socratic AI Tutor**: Supports 8 distinct pedagogical personas with a 3-tier progressive hint state machine (Nudge, Clue, Scaffolding).
+- **Automated Publication-Ready Exporters**: Exports Anki flashcard decks (`.apkg`), native OpenXML Word documents (`.docx`), Typst PDFs, SRT/VTT subtitles, and structured JSON knowledge trees.
+- **Enterprise Security & Governance**: Enforces JWT HS256 authentication, role-based access control (`STUDENT`, `TEACHER`, `ADMIN`), pre-flight SSRF network firewalling, prompt injection fencing, and GDPR right-to-portability and erasure.
 
 ---
 
 ## 🚀 Quick Start
 
-### 1. Prerequisites
-- Python 3.11+
-- `ffmpeg` on system `$PATH`
-- Redis (local or cloud instance)
-- API keys: OpenAI, Anthropic, or Google; optional Groq/Deepgram for serverless ASR
-
-### 2. Setup & Installation
+### 1. Installation
 ```bash
-git clone https://github.com/Dinesh23856/VideoMind-AI.git
+# Clone the repository and activate virtual environment
+git clone https://github.com/YOUR_USER/VideoMind-AI.git
 cd VideoMind-AI
-python -m venv .venv
+.venv\Scripts\Activate.ps1
 
-# On Linux/macOS:
-source .venv/bin/activate
-# On Windows:
-.venv\Scripts\activate
-
+# Install dependencies
 pip install -r requirements.txt
-cp .env.example .env
-# Configure your API keys in .env
-
-# Apply database schema migrations
-alembic upgrade head
 ```
 
-### 3. Run with Docker Compose (Recommended)
+### 2. Run Application
 ```bash
-docker compose up --build
+# Start FastAPI application
+uvicorn app.api.main:app --host 127.0.0.1 --port 8000 --reload
 ```
-- Web UI & SPA Dashboard: http://localhost:8000
-- Interactive Swagger OpenAPI Docs: http://localhost:8000/docs
-- Prometheus Telemetry Metrics: http://localhost:8000/metrics
+Open [http://localhost:8000](http://localhost:8000) in your browser to access the interactive web interface, or [http://localhost:8000/docs](http://localhost:8000/docs) for the OpenAPI interactive API docs.
 
----
-
-## 💻 CLI Usage
-
-The VideoMind-AI CLI allows synchronous offline and developer debugging:
-
+### 3. Run Verification Suite
 ```bash
-# Process a video lecture
-python scripts/cli.py process "https://www.youtube.com/watch?v=..." --title "Transformers Lecture"
+# Run complete automated pytest suite (103 tests)
+.venv\Scripts\python.exe -m pytest tests
 
-# Search concepts across indexed lectures
-python scripts/cli.py search "attention mechanism"
+# Run 16 production reality gates
+.venv\Scripts\python.exe scripts/verify_production.py
 
-# Ask the Socratic AI Tutor
-python scripts/cli.py ask "Why does multi-head attention project into subspaces?" --mode Developer
-
-# Export artifacts to target format (docx, anki, srt, vtt, md, json)
-python scripts/cli.py export ./output/<job_id> --format docx
+# Run AI evaluation benchmark
+.venv\Scripts\python.exe scripts/evaluate.py
 ```
 
 ---
 
-## 🧪 Comprehensive Verification & Testing
+## 📖 Complete Technical Documentation
 
-### 1. Full Automated Pytest Suite (102 tests)
-```bash
-pytest tests/ -v
-```
-Validates:
-- Real live HTTP server probing over TCP (`/health`, `/live`, `/ready`, `/metrics`, `/docs`)
-- RBAC authentication lifecycle & tenant resource isolation (403 Forbidden)
-- RAG grounding across 4 question types (Supported, Unsupported refusal, etc.)
-- AI Tutor 8 pedagogical modes & 3-tier progressive hint scaffolding
-- SSRF loopback, cloud metadata & path traversal sanitization
-- OpenXML `.docx` byte validation, Anki, WebVTT, and SRT exports
-- Local and S3 storage fail-fast behavior
-- Multi-video collections, cross-media RAG, and knowledge versioning
-- Autonomous agents, Allen's interval algebra, and GDPR data governance
+All detailed architectural specifications, subsystem designs, capability matrices, security models, deployment configurations, and developer guides are unified in the single authoritative technical documentation file:
 
-### 2. Automated Production Reality Gates (16 Gates)
-```bash
-python scripts/verify_production.py
-```
-Executes all 16 live integration reality gates and outputs `scripts/reality_gates_report.json`.
-
----
-
-## 📖 Documentation
-
-- [Platform Capability Matrix](PLATFORM_CAPABILITY_MATRIX.md)
-- [System Architecture](AI_SYSTEM_ARCHITECTURE.md)
-- [Evidence Architecture](EVIDENCE_ARCHITECTURE.md)
-- [AI Benchmark & Evaluation Report](AI_EVALUATION_REPORT.md)
-- [REST API Reference](docs/api.md)
-- [Security & Threat Mitigation](docs/security.md)
-- [Deployment Guide (Render & Docker)](DEPLOY_RENDER.md)
-
+👉 **[PROJECT_DOCUMENTATION.md](PROJECT_DOCUMENTATION.md)**
 
 ---
 

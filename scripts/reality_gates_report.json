@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-09-30T05:56:15Z",
+  "timestamp": "2026-10-01T04:24:19Z",
   "status": "PASS",
-  "total_duration_seconds": 8.029,
+  "total_duration_seconds": 7.334,
   "gates_evaluated": 16,
   "gates_passed": 16,
   "gates_failed": 0,
@@ -10,28 +10,28 @@
       "gate": 1,
       "name": "Core Imports & Dependency Integrity",
       "status": "PASS",
-      "duration_seconds": 3.194,
+      "duration_seconds": 4.035,
       "details": "Imported core packages successfully: FastAPI 0.141.1, SQLAlchemy 2.1.1"
     },
     {
       "gate": 2,
       "name": "Database Schema & Migration Integrity",
       "status": "PASS",
-      "duration_seconds": 0.417,
-      "details": "Database schema verified: Users=104, Videos=24, Jobs=24, Courses=11"
+      "duration_seconds": 0.514,
+      "details": "Database schema verified: Users=167, Videos=38, Jobs=38, Courses=18"
     },
     {
       "gate": 3,
       "name": "RBAC Authentication & Resource Isolation",
       "status": "PASS",
-      "duration_seconds": 0.208,
+      "duration_seconds": 0.212,
       "details": "RBAC hashing, token lifecycle, cross-user isolation (403), and admin bypass verified."
     },
     {
       "gate": 4,
       "name": "Hybrid RAG Grounding & Refusal Behavior",
       "status": "PASS",
-      "duration_seconds": 0.043,
+      "duration_seconds": 0.057,
       "details": "Verified RAG grounding: Supported query confidence=0.95, Unsupported query confidence=0.15"
     },
     {
@@ -45,28 +45,28 @@
       "gate": 6,
       "name": "Multimodal Exporters & Document Integrity",
       "status": "PASS",
-      "duration_seconds": 2.322,
+      "duration_seconds": 0.487,
       "details": "Verified OpenXML .docx (36648 bytes), Markdown, and WebVTT exports."
     },
     {
       "gate": 7,
       "name": "Storage Traversal Security & Provider Fail-Fast",
       "status": "PASS",
-      "duration_seconds": 0.015,
+      "duration_seconds": 0.012,
       "details": "Storage CRUD, directory traversal containment, and S3 fail-fast guard verified."
     },
     {
       "gate": 8,
       "name": "Live API Contract & Route Integrity",
       "status": "PASS",
-      "duration_seconds": 1.785,
+      "duration_seconds": 1.938,
       "details": "Probed live FastAPI routes: /health, /ready, /metrics, and SPA direct refresh (/dashboard)."
     },
     {
       "gate": 9,
       "name": "Security Defenses (SSRF, Traversal, Prompt Guard)",
       "status": "PASS",
-      "duration_seconds": 0.001,
+      "duration_seconds": 0.002,
       "details": "Verified SSRF boundary protection, path traversal sanitization, and prompt injection fencing."
     },
     {
@@ -87,14 +87,14 @@
       "gate": 12,
       "name": "Code & Math Intelligence & GDPR Data Governance",
       "status": "PASS",
-      "duration_seconds": 0.004,
+      "duration_seconds": 0.005,
       "details": "Verified Code Static Analysis, Mathematical Derivations, Resource Quotas, and GDPR Right-to-Erasure."
     },
     {
       "gate": 13,
       "name": "Multimodal Events & Allen's Interval Algebra",
       "status": "PASS",
-      "duration_seconds": 0.009,
+      "duration_seconds": 0.017,
       "details": "Verified Multimodal Event Stream, Allen's Interval Algebra, and Concept Lifecycle Trajectories."
     },
     {
@@ -108,7 +108,7 @@
       "gate": 15,
       "name": "Knowledge Versioning, DAG Engine & Resilience",
       "status": "PASS",
-      "duration_seconds": 0.018,
+      "duration_seconds": 0.041,
       "details": "Verified Git-like Knowledge Version Control, Pipeline DAG Execution, and Resilience Subsystems."
     },
     {
