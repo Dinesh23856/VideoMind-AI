@@ -18,42 +18,36 @@ def structure_transcript(
     model: Optional[str] = None,
 ) -> str:
     """
-    Send the complete timestamped transcript to a frontier LLM and return
-    pure Markdown lecture notes (including Anki + quiz sections).
+    Send the complete timestamped transcript to a frontier LLM (local or cloud)
+    and return pure Markdown lecture notes (including Anki + quiz sections).
+    Guarantees $0 mandatory spend and graceful local fallback.
     """
+    from app.core.llm_providers import DeterministicOfflineLLMProvider, get_llm_provider
+
     settings = get_settings()
-    provider = provider or settings.llm_provider
-    model = model or settings.llm_model
+    target_provider = provider or settings.llm_provider
+    target_model = model or settings.llm_model
 
     user_content = build_user_prompt(title, segments)
 
-    if provider == "groq" and settings.groq_api_key:
-        try:
-            return _call_groq(SYSTEM_PROMPT, user_content, model, settings)
-        except Exception as e:
-            logger.warning(f"Groq provider call failed ({e}); falling back to deterministic synthesis.")
-            return _synthesize_offline_notes(title, segments)
-    if provider == "openai" and settings.openai_api_key:
-        try:
-            return _call_openai(SYSTEM_PROMPT, user_content, model, settings)
-        except Exception as e:
-            logger.warning(f"OpenAI provider call failed ({e}); falling back to deterministic synthesis.")
-            return _synthesize_offline_notes(title, segments)
-    if provider == "anthropic" and settings.anthropic_api_key:
-        try:
-            return _call_anthropic(SYSTEM_PROMPT, user_content, model, settings)
-        except Exception as e:
-            logger.warning(f"Anthropic provider call failed ({e}); falling back to deterministic synthesis.")
-            return _synthesize_offline_notes(title, segments)
-    if provider == "google" and settings.google_api_key:
-        try:
-            return _call_google(SYSTEM_PROMPT, user_content, model, settings)
-        except Exception as e:
-            logger.warning(f"Google Generative AI call failed ({e}); falling back to deterministic synthesis.")
-            return _synthesize_offline_notes(title, segments)
+    try:
+        active_provider = get_llm_provider(requested_provider=target_provider)
+        if isinstance(active_provider, DeterministicOfflineLLMProvider):
+            return active_provider.synthesize_notes(title, segments)
 
-    # Deterministic offline provider when external credentials are absent or provider is offline
-    return _synthesize_offline_notes(title, segments)
+        result = active_provider.generate(
+            prompt=user_content,
+            system_prompt=SYSTEM_PROMPT,
+            model=target_model,
+            max_tokens=settings.llm_max_tokens,
+            temperature=0.2,
+        )
+        if result and len(result.strip()) > 50:
+            return result
+        return _synthesize_offline_notes(title, segments)
+    except Exception as exc:
+        logger.warning(f"Active LLM provider failed ({exc}); falling back to deterministic synthesis.")
+        return _synthesize_offline_notes(title, segments)
 
 
 def _call_openai(system: str, user: str, model: str, settings) -> str:

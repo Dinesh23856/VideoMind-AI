@@ -12,13 +12,14 @@
 
 ## ⚡ Key Capabilities
 
-- **Multimodal Video & Audio Perception**: Extracts clean 16kHz audio, samples differential keyframes ($\ge 15\%$ visual distance), extracts OCR slide text, and aligns media on a microsecond interval timeline via Allen's 13 interval relations.
+- **Zero-Cost / Local-First Frontier AI**: 100% functional with $0 mandatory API spend. Natively integrates local open-weight runtimes (Ollama, local OpenAI-compatible endpoints), free-tier cloud adapters (Groq, Google Gemini), and zero-dependency deterministic offline synthesis.
+- **Multimodal Video & Audio Perception**: Extracts clean 16kHz audio, runs local Faster-Whisper ASR, samples differential keyframes ($\ge 15\%$ visual distance), extracts OCR slide text, and aligns media on a microsecond interval timeline via Allen's 13 interval relations.
 - **19 Typed Epistemic Knowledge Objects**: Formally parses concepts, definitions, theorems, proofs, equations (LaTeX), algorithms, code snippets, and contradictions into a directed prerequisite multigraph.
 - **Independent Evidence Graph & Trust Calibration**: Decouples assertions from media spans, tracking corroboration and dispute edges alongside calibrated source credibility scores.
 - **Hybrid Retrieval & Grounded RAG**: Combines BM25 exact lexical term matching with continuous dense vector retrieval using Reciprocal Rank Fusion ($k=60$), enforcing verified timestamp interval citations with calibrated refusal on out-of-domain queries.
 - **8-Mode Socratic AI Tutor**: Supports 8 distinct pedagogical personas with a 3-tier progressive hint state machine (Nudge, Clue, Scaffolding).
 - **Automated Publication-Ready Exporters**: Exports Anki flashcard decks (`.apkg`), native OpenXML Word documents (`.docx`), Typst PDFs, SRT/VTT subtitles, and structured JSON knowledge trees.
-- **Enterprise Security & Governance**: Enforces JWT HS256 authentication, role-based access control (`STUDENT`, `TEACHER`, `ADMIN`), pre-flight SSRF network firewalling, prompt injection fencing, and GDPR right-to-portability and erasure.
+- **Enterprise Security & Governance**: Enforces JWT HS256 authentication, role-based access control (`STUDENT`, `TEACHER`, `ADMIN`), strict local-only privacy isolation modes, pre-flight SSRF network firewalling, prompt injection fencing, and GDPR right-to-portability and erasure.
 
 ---
 
@@ -44,7 +45,7 @@ Open [http://localhost:8000](http://localhost:8000) in your browser to access th
 
 ### 3. Run Verification Suite
 ```bash
-# Run complete automated pytest suite (103 tests)
+# Run complete automated pytest suite (111 tests)
 .venv\Scripts\python.exe -m pytest tests
 
 # Run 16 production reality gates

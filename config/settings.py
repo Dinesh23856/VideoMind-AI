@@ -45,13 +45,17 @@ class Settings(BaseSettings):
     groq_api_key: Optional[str] = None
     deepgram_api_key: Optional[str] = None
 
-    # LLM
-    llm_provider: Literal["openai", "anthropic", "google", "groq", "offline"] = "openai"
+    # LLM & Local-First Frontier AI
+    llm_provider: Literal["openai", "anthropic", "google", "groq", "ollama", "local", "offline"] = "openai"
     openai_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
     google_api_key: Optional[str] = None
     llm_model: str = "gpt-4o"
     llm_max_tokens: int = 8192
+    ollama_base_url: str = "http://localhost:11434"
+    ollama_model: str = "llama3.2"
+    local_llm_url: Optional[str] = None
+    zero_cost_mode: bool = True
 
     # Notion
     notion_api_key: Optional[str] = None

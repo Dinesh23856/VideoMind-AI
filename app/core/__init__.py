@@ -20,6 +20,15 @@ from .model_router import (
     RoutingTaskType,
     get_model_router,
 )
+from .llm_providers import (
+    BaseLLMProvider,
+    DeterministicOfflineLLMProvider,
+    GeminiLLMProvider,
+    GroqLLMProvider,
+    OllamaLLMProvider,
+    OpenAICompatibleLLMProvider,
+    get_llm_provider,
+)
 
 __all__ = [
     "AuthenticationError",
@@ -39,5 +48,12 @@ __all__ = [
     "RoutingDecision",
     "RoutingTaskType",
     "get_model_router",
+    "BaseLLMProvider",
+    "DeterministicOfflineLLMProvider",
+    "GeminiLLMProvider",
+    "GroqLLMProvider",
+    "OllamaLLMProvider",
+    "OpenAICompatibleLLMProvider",
+    "get_llm_provider",
 ]
 

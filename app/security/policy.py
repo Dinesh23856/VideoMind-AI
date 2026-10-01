@@ -37,7 +37,7 @@ class AIPolicyEngine:
         """Blocks cloud models when in LOCAL_ONLY or strict privacy mode."""
         provider_norm = provider_name.upper()
         if self.config.privacy_mode == PrivacyMode.LOCAL_ONLY:
-            if provider_norm not in ("LOCAL", "OLLAMA", "MOCK"):
+            if provider_norm not in ("LOCAL", "OLLAMA", "OPENAI_COMPATIBLE", "OFFLINE", "MOCK"):
                 raise PolicyViolationError(
                     f"Privacy mode LOCAL_ONLY forbids cloud provider '{provider_name}'."
                 )

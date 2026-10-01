@@ -134,7 +134,7 @@ VideoMind-AI/
 ├── scripts/                         # Verification, Benchmark & Management Scripts
 │   ├── evaluate.py                  # Quantitative AI Evaluation Benchmark Harness
 │   └── verify_production.py         # 16-Gate Automated Production Reality Verifier
-├── tests/                           # Pytest Comprehensive Test Suite (103 Tests)
+├── tests/                           # Pytest Comprehensive Test Suite (111 Tests)
 ├── Dockerfile                       # Production Multi-Stage Container Definition
 ├── docker-compose.yml               # Local Multi-Service Compose (API, Worker, Redis)
 ├── render.yaml                      # Render Infrastructure-as-Code Blueprint
@@ -151,6 +151,8 @@ To ensure strict engineering integrity, every capability in VideoMind-AI is clas
 
 | Subsystem | Underlying Technology | Epistemic Classification | Fallback Behavior |
 |---|---|---|---|
+| **Local LLM Runtime** | Ollama REST API (`llama3.2`, `mistral`, `qwen`) / OpenAI-compatible | **REAL** | Auto-cascade to Groq free-tier, Gemini free-tier, or deterministic engine |
+| **Deterministic Synthesis** | Zero-dependency rule-based structural synthesis | **FALLBACK** | Guaranteed $0.00 spend, mathematical formalism & Anki/Quiz generation |
 | **Audio Transcription** | Faster-Whisper ASR (CTranslate2) | **REAL** | Deterministic offline lexical speech decoding if GPU/Torch missing |
 | **Speaker Diarization** | Acoustic pauses & linguistic question cadences | **HEURISTIC** | Speaker turn clustering via silence intervals & sentence boundaries |
 | **Visual OCR** | Tesseract OCR / PIL differential sampling | **REAL** | Synthetic slide text placeholder if Tesseract binary missing |
@@ -162,10 +164,37 @@ To ensure strict engineering integrity, every capability in VideoMind-AI is clas
 | **Evidence Graph** | Multi-node weighted corroboration & dispute graph | **REAL** | Objective verification threshold formula |
 | **Claim Resolution** | Token-normalized Jaccard & negation cue detection | **HEURISTIC** | Syntactic clustering across multi-video transcripts |
 | **Grounded RAG** | Transcript interval citation verification with refusal | **REAL** | Returns high-risk alert & abstains on out-of-domain queries |
-| **AI Tutor** | 8-mode pedagogical state machine with progressive hints | **REAL** | Rule-based scaffolding engine; calls LLM when API keys present |
+| **AI Tutor** | 8-mode pedagogical state machine with progressive hints | **REAL** | Rule-based scaffolding engine; calls local or cloud LLM when available |
 | **Autonomous Agents** | `AgentSupervisor` with Plan-Execute-Verify-Repair loop | **REAL** | Circuit breaker limits repairs to 2 iterations |
-| **Model Routing** | `ModelRouter 2.0` with latency, cost, and task-type awareness | **REAL** | Routes across OpenAI, Anthropic, Gemini, Groq, or local fallback |
+| **Model Routing** | `ModelRouter 2.0` with zero-cost budgeting & task-type awareness | **REAL** | Routes across Ollama, Groq, Gemini, OpenAI, Anthropic, or offline fallback |
 | **Counterfactual Simulator**| Graph surgery modeling missing prerequisite impact | **SIMULATION** | Graph reachability calculation |
+
+### 4.1 Zero-Cost / Local-First Frontier AI Subsystem (`app/core/llm_providers.py`)
+
+VideoMind-AI guarantees **zero mandatory external API spend ($0.00)**. The platform runs entirely offline or locally without requiring OpenAI, Anthropic, xAI, or paid Gemini credentials.
+
+1. **Unified Provider Abstraction (`BaseLLMProvider`)**:
+   - `OllamaLLMProvider`: Direct REST interface to local Ollama daemon (`http://localhost:11434`), supporting open-weight frontier models (`llama3.2`, `mistral`, `qwen2.5-coder`).
+   - `OpenAICompatibleLLMProvider`: Generic adapter for local accelerated inference servers (LM Studio, vLLM, LocalAI, Jan, text-generation-webui).
+   - `GroqLLMProvider`: Sub-second fast inference using Groq's zero-cost free-tier open models (`llama-3.3-70b-versatile`, `llama-3.1-8b-instant`).
+   - `GeminiLLMProvider`: Generous free-tier multimodal integration (`gemini-1.5-flash`).
+   - `DeterministicOfflineLLMProvider`: 100% offline, zero-network fallback engine generating publication-grade Markdown notes, LaTeX equations, Anki flashcard pairs, and multiple-choice quizzes with verified answer keys.
+   - `OpenAILLMProvider` & `AnthropicLLMProvider`: Optional commercial adapters when enterprise keys are explicitly configured.
+
+2. **Automated Cascading Resolver (`get_llm_provider`)**:
+   - Resolves requests through a strict priority cascade:
+     $$\text{Requested Provider} \longrightarrow \text{Local Ollama} \longrightarrow \text{Local OpenAI-Compatible} \longrightarrow \text{Groq Free Tier} \longrightarrow \text{Gemini Free Tier} \longrightarrow \text{Deterministic Offline Engine}$$
+   - When external credentials are absent or remote endpoints return HTTP 429/500 errors, the pipeline automatically falls back without raising unhandled exceptions or halting background jobs.
+
+3. **Capability & Epistemic Honesty Tagging**:
+   - Every inference response and routing decision is stamped with an explicit capability classification tag:
+     - `REAL`: Executed via live local open-weight model or live API.
+     - `FALLBACK`: Executed via deterministic structural template generation.
+     - `HEURISTIC`: Executed via rule-based or algorithmic approximation.
+
+4. **Zero-Cost Budget Routing (`app/core/model_router.py`)**:
+   - The `ModelRouter` enforces `max_cost_budget=0.0` and `zero_cost_mode=True`.
+   - Supports hot-swappable provider switching at runtime via `set_primary_provider(...)`.
 
 ---
 
@@ -532,11 +561,12 @@ python cli.py tutor "Explain cross-validation" --mode BEGINNER
 
 VideoMind-AI maintains a zero-tolerance verification policy:
 
-### 19.1 Automated Pytest Suite (103 Tests)
+### 19.1 Automated Pytest Suite (111 Tests)
 ```powershell
 .venv\Scripts\python.exe -m pytest tests
 ```
-- **Coverage**: 103 unit and integration tests across 26 test modules:
+- **Coverage**: 111 unit and integration tests across 27 test modules:
+  - Zero-Cost & Local-First Frontier AI (Ollama, local providers, offline fallback, zero-budget routing).
   - Authentication, RBAC, and cross-tenant isolation.
   - Faster-Whisper ASR, speaker turns, and multilingual translation.
   - Differential frame sampling, keyframe extraction, and OCR.

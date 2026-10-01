@@ -18,9 +18,13 @@ class ModelCapability(str, Enum):
 
 class ModelProvider(str, Enum):
     LOCAL = "LOCAL"
+    OLLAMA = "OLLAMA"
+    OPENAI_COMPATIBLE = "OPENAI_COMPATIBLE"
+    GROQ = "GROQ"
+    GOOGLE = "GOOGLE"
     OPENAI = "OPENAI"
     ANTHROPIC = "ANTHROPIC"
-    OLLAMA = "OLLAMA"
+    OFFLINE = "OFFLINE"
     MOCK = "MOCK"
 
 
@@ -41,6 +45,10 @@ class ModelMetadata(BaseModel):
     cost_per_1k_output_tokens: float = 0.0
     latency_tier: LatencyTier = LatencyTier.STANDARD
     offline_capable: bool = False
+    is_local: bool = False
+    is_free_tier: bool = False
+    supports_streaming: bool = True
+    supports_json_mode: bool = True
     description: str = ""
 
 
@@ -61,6 +69,8 @@ class ModelRegistry:
                 capabilities=[ModelCapability.AUDIO_TRANSCRIPTION],
                 latency_tier=LatencyTier.FAST,
                 offline_capable=True,
+                is_local=True,
+                is_free_tier=True,
                 description="Local offline Whisper speech-to-text model",
             ),
             ModelMetadata(
@@ -71,7 +81,21 @@ class ModelRegistry:
                 capabilities=[ModelCapability.EMBEDDING],
                 latency_tier=LatencyTier.ULTRA_FAST,
                 offline_capable=True,
+                is_local=True,
+                is_free_tier=True,
                 description="Deterministic 128-dimensional dense vector embeddings",
+            ),
+            ModelMetadata(
+                model_id="ollama-llama3.2",
+                name="Ollama Llama 3.2 3B",
+                provider=ModelProvider.OLLAMA,
+                context_window=128000,
+                capabilities=[ModelCapability.TEXT_GENERATION, ModelCapability.REASONING],
+                latency_tier=LatencyTier.FAST,
+                offline_capable=True,
+                is_local=True,
+                is_free_tier=True,
+                description="Local low-latency open-weight model",
             ),
             ModelMetadata(
                 model_id="ollama-llama3-8b",
@@ -81,7 +105,53 @@ class ModelRegistry:
                 capabilities=[ModelCapability.TEXT_GENERATION, ModelCapability.REASONING],
                 latency_tier=LatencyTier.FAST,
                 offline_capable=True,
+                is_local=True,
+                is_free_tier=True,
                 description="Local Ollama open-weight LLM",
+            ),
+            ModelMetadata(
+                model_id="groq-llama-3.3-70b",
+                name="Groq Llama 3.3 70B",
+                provider=ModelProvider.GROQ,
+                context_window=128000,
+                capabilities=[
+                    ModelCapability.TEXT_GENERATION,
+                    ModelCapability.REASONING,
+                    ModelCapability.CODE_INTERPRETATION,
+                ],
+                latency_tier=LatencyTier.ULTRA_FAST,
+                offline_capable=False,
+                is_local=False,
+                is_free_tier=True,
+                description="Zero-cost fast cloud inference on open weights",
+            ),
+            ModelMetadata(
+                model_id="gemini-1.5-flash",
+                name="Google Gemini 1.5 Flash",
+                provider=ModelProvider.GOOGLE,
+                context_window=1000000,
+                capabilities=[
+                    ModelCapability.TEXT_GENERATION,
+                    ModelCapability.VISION_ANALYSIS,
+                    ModelCapability.REASONING,
+                ],
+                latency_tier=LatencyTier.FAST,
+                offline_capable=False,
+                is_local=False,
+                is_free_tier=True,
+                description="Free-tier multimodal frontier model",
+            ),
+            ModelMetadata(
+                model_id="deterministic-offline-v2",
+                name="Deterministic Offline Engine",
+                provider=ModelProvider.OFFLINE,
+                context_window=32768,
+                capabilities=[ModelCapability.TEXT_GENERATION, ModelCapability.REASONING],
+                latency_tier=LatencyTier.ULTRA_FAST,
+                offline_capable=True,
+                is_local=True,
+                is_free_tier=True,
+                description="Deterministic rule-based offline synthesis",
             ),
             ModelMetadata(
                 model_id="gpt-4o",
@@ -98,6 +168,8 @@ class ModelRegistry:
                 cost_per_1k_output_tokens=0.015,
                 latency_tier=LatencyTier.STANDARD,
                 offline_capable=False,
+                is_local=False,
+                is_free_tier=False,
                 description="State of the art multimodal frontier model",
             ),
             ModelMetadata(
@@ -115,6 +187,8 @@ class ModelRegistry:
                 cost_per_1k_output_tokens=0.015,
                 latency_tier=LatencyTier.STANDARD,
                 offline_capable=False,
+                is_local=False,
+                is_free_tier=False,
                 description="High precision coding and complex reasoning model",
             ),
         ]
@@ -134,6 +208,7 @@ class ModelRegistry:
         self,
         capability: ModelCapability,
         offline_only: bool = False,
+        zero_cost_only: bool = False,
         max_cost_per_1k_input: Optional[float] = None,
         min_context_window: int = 1024,
     ) -> Optional[ModelMetadata]:
@@ -144,16 +219,21 @@ class ModelRegistry:
         ]
         if offline_only:
             candidates = [m for m in candidates if m.offline_capable]
+        if zero_cost_only:
+            candidates = [
+                m for m in candidates
+                if m.is_local or m.is_free_tier or m.cost_per_1k_input_tokens == 0.0
+            ]
         if max_cost_per_1k_input is not None:
             candidates = [m for m in candidates if m.cost_per_1k_input_tokens <= max_cost_per_1k_input]
 
         if not candidates:
             return None
 
-        # Sort: prefer offline if requested, then lowest cost, then highest context
+        # Sort: prefer offline if requested, then zero-cost, then lowest cost, then highest context
         candidates.sort(
             key=lambda m: (
-                0 if m.offline_capable else 1,
+                0 if (offline_only and m.offline_capable) else (0 if (m.is_local or m.is_free_tier) else 1),
                 m.cost_per_1k_input_tokens,
                 -m.context_window,
             )
