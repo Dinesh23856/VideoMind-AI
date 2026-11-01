@@ -300,7 +300,7 @@ def _ensure_size_limit(audio_path: str, max_mb: int = 24) -> str:
         "64k",
         out.name,
     ]
-    result = subprocess.run(cmd, capture_output=True, text=True)
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg compress failed: {result.stderr}")
     return out.name

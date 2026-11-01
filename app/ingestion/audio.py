@@ -67,7 +67,7 @@ def demux_audio_to_wav(
         output_path,
     ]
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
         if result.returncode != 0:
             raise RuntimeError(f"ffmpeg demux failed: {result.stderr.strip()}")
     except FileNotFoundError:

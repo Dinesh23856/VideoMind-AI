@@ -46,7 +46,18 @@ def structure_transcript(
             return result
         return _synthesize_offline_notes(title, segments)
     except Exception as exc:
-        logger.warning(f"Active LLM provider failed ({exc}); falling back to deterministic synthesis.")
+        from app.core.llm_providers import RateLimitedError
+        exc_str = str(exc).upper()
+        is_rate_limited = isinstance(exc, RateLimitedError) or any(
+            kw in exc_str for kw in ("429", "RESOURCE_EXHAUSTED", "QUOTA", "RATE_LIMIT")
+        )
+        if is_rate_limited:
+            logger.warning(
+                f"LLM provider rate-limited (HTTP 429 / RESOURCE_EXHAUSTED): {exc}. "
+                f"Falling back to deterministic offline synthesis."
+            )
+        else:
+            logger.warning(f"Active LLM provider failed ({exc}); falling back to deterministic synthesis.")
         return _synthesize_offline_notes(title, segments)
 
 

@@ -26,11 +26,10 @@ def test_local_storage_crud_and_traversal_protection():
         assert storage.exists("lectures/math/derived.txt")
         assert storage.read("lectures/math/derived.txt") == b"Derivative derivations."
 
-        # 3. Path traversal attack protection
+        # 3. Path traversal attack protection strictly raises PermissionError
         traversal_key = "../../../outside_secret.txt"
-        saved_traversal = storage.save(traversal_key, b"Attacker data")
-        # Ensure target file was contained strictly within tmpdir
-        assert Path(saved_traversal).resolve().is_relative_to(Path(tmpdir).resolve())
+        with pytest.raises(PermissionError):
+            storage.save(traversal_key, b"Attacker data")
 
         # 4. Delete
         assert storage.delete(key) is True

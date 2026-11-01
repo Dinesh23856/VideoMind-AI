@@ -51,9 +51,11 @@ class SpeakerRole(str, Enum):
 
 class FactVerificationStatus(str, Enum):
     SUPPORTED = "SUPPORTED"
+    VERIFIED = "VERIFIED"
     PARTIALLY_SUPPORTED = "PARTIALLY_SUPPORTED"
     UNVERIFIED = "UNVERIFIED"
     CONFLICTING = "CONFLICTING"
+    CONTRADICTED = "CONTRADICTED"
     INSUFFICIENT_EVIDENCE = "INSUFFICIENT_EVIDENCE"
 
 
@@ -75,6 +77,23 @@ class KnowledgeEdgeType(str, Enum):
     CONTRASTS_WITH = "CONTRASTS_WITH"
     IMPLEMENTED_BY = "IMPLEMENTED_BY"
     EXPLAINS = "EXPLAINS"
+    # Extended graph relationship types
+    MENTIONS = "MENTIONS"
+    DEFINES = "DEFINES"
+    FOLLOWS = "FOLLOWS"
+    DERIVED_FROM = "DERIVED_FROM"
+    OCCURS_IN = "OCCURS_IN"
+    SPOKEN_BY = "SPOKEN_BY"
+    APPEARS_IN = "APPEARS_IN"
+    REFERENCES = "REFERENCES"
+    ANSWERS = "ANSWERS"
+    ASKS = "ASKS"
+    SIMILAR_TO = "SIMILAR_TO"
+    PRECEDES = "PRECEDES"
+    CAUSES = "CAUSES"
+    CONTAINS_SCENE = "CONTAINS_SCENE"
+    DEPICTS = "DEPICTS"
+    HAS_OCR = "HAS_OCR"
 
 
 class KnowledgeObjectType(str, Enum):
@@ -97,6 +116,20 @@ class KnowledgeObjectType(str, Enum):
     TRANSCRIPT_SEGMENT = "TRANSCRIPT_SEGMENT"
     SOURCE = "SOURCE"
     EVIDENCE = "EVIDENCE"
+    # Multimodal knowledge node types
+    VIDEO = "VIDEO"
+    DOCUMENT = "DOCUMENT"
+    LECTURE = "LECTURE"
+    SPEAKER = "SPEAKER"
+    ENTITY = "ENTITY"
+    CODE = "CODE"
+    FORMULA = "FORMULA"
+    KEYFRAME = "KEYFRAME"
+    OCR_REGION = "OCR_REGION"
+    AUDIO_EVENT = "AUDIO_EVENT"
+    SCENE = "SCENE"
+    EVENT = "EVENT"
+    TEMPORAL = "TEMPORAL"
 
 
 class LearnerMasteryState(str, Enum):
@@ -149,12 +182,16 @@ class WordTimestamp(BaseModel):
 class VisualFrameContext(BaseModel):
     frame_id: str
     timestamp: float
-    frame_type: str = "slide"  # slide, diagram, code, terminal, chart, equation, speaker
+    frame_type: str = "slide"  # slide, diagram, code, terminal, chart, equation, speaker, formula, whiteboard, document
     description: str = ""
     ocr_text: str = ""
     image_path: Optional[str] = None
     confidence: float = 0.95
     bounding_boxes: List[Dict[str, Any]] = Field(default_factory=list)
+    perceptual_hash: Optional[str] = None
+    scene_id: Optional[str] = None
+    selection_reason: Optional[str] = None
+    classification: str = "HEURISTIC"
 
 
 class AudioEvent(BaseModel):
@@ -196,6 +233,9 @@ class MultimodalTimelinePoint(BaseModel):
     frame_type: Optional[str] = None
     ocr_text: str = ""
     concept_tags: List[str] = Field(default_factory=list)
+    scene_id: Optional[str] = None
+    multimodal_event_id: Optional[str] = None
+    multimodal_event_type: Optional[str] = None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -211,6 +251,20 @@ class ConceptNode(BaseModel):
     aliases: List[str] = Field(default_factory=list)
     category: str = "General"
     video_id: Optional[str] = None
+    node_type: KnowledgeObjectType = KnowledgeObjectType.CONCEPT
+    document_id: Optional[str] = None
+    start_ms: Optional[int] = None
+    end_ms: Optional[int] = None
+    source_modality: Optional[str] = "text"
+    provenance: Dict[str, Any] = Field(default_factory=dict)
+    classification: str = "REAL"
+    tenant_id: str = "default"
+    workspace_id: str = "default"
+    user_id: Optional[str] = None
+    canonical_id: Optional[str] = None
+    mention_count: int = 1
+    evidence_ids: List[str] = Field(default_factory=list)
+    source_id: Optional[str] = None
 
 
 class RelationshipEdge(BaseModel):
@@ -219,6 +273,18 @@ class RelationshipEdge(BaseModel):
     relation: KnowledgeEdgeType
     confidence: float = 1.0
     description: str = ""
+    source_id_ref: Optional[str] = None
+    video_id: Optional[str] = None
+    document_id: Optional[str] = None
+    timestamp_start_ms: Optional[int] = None
+    timestamp_end_ms: Optional[int] = None
+    source_modality: Optional[str] = None
+    created_at: str = Field(default_factory=lambda: time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()))
+    created_by: str = "system"
+    classification: str = "REAL"
+    tenant_id: str = "default"
+    workspace_id: str = "default"
+    user_id: Optional[str] = None
 
 
 class FactClaim(BaseModel):
@@ -230,6 +296,21 @@ class FactClaim(BaseModel):
     status: FactVerificationStatus = FactVerificationStatus.SUPPORTED
     external_source: Optional[str] = None
     contradictions: List[str] = Field(default_factory=list)
+    tenant_id: str = "default"
+    workspace_id: str = "default"
+    user_id: Optional[str] = None
+    classification: str = "REAL"
+    source_ids: List[str] = Field(default_factory=list)
+    source_id: Optional[str] = None
+    video_id: Optional[str] = None
+    document_id: Optional[str] = None
+    modality: Optional[str] = "transcript"
+    evidence_id: Optional[str] = None
+    evidence_ref: Optional[str] = None
+    extraction_method: str = "HEURISTIC"
+    epistemic_classification: str = "HEURISTIC"
+    start_ms: Optional[int] = None
+    end_ms: Optional[int] = None
 
 
 class KnowledgeObject(BaseModel):

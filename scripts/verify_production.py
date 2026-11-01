@@ -254,11 +254,13 @@ class RealityGateRunner:
             if read_back != b"Reality check storage payload":
                 raise AssertionError("Storage read back data mismatch")
 
-            # Traversal containment check
+            # Traversal rejection check
             traversal_key = "../../../outside.txt"
-            saved_traversal = local.save(traversal_key, b"evil")
-            if not Path(saved_traversal).resolve().is_relative_to(Path(tmpdir).resolve()):
-                raise AssertionError("Path traversal escaped base directory!")
+            try:
+                local.save(traversal_key, b"evil")
+                raise AssertionError("Path traversal attempt was not rejected!")
+            except (PermissionError, ValueError):
+                pass  # Strictly rejected
 
         # S3 fail fast check
         s3 = S3StorageProvider()

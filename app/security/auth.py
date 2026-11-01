@@ -41,6 +41,8 @@ def create_access_token(
     user_id: str,
     role: str = "USER",
     expires_delta_seconds: Optional[int] = None,
+    tenant_id: Optional[str] = None,
+    workspace_id: Optional[str] = None,
 ) -> str:
     now = time.time()
     expire = now + (expires_delta_seconds or (settings.jwt_access_token_expire_minutes * 60))
@@ -50,6 +52,10 @@ def create_access_token(
         "iat": int(now),
         "exp": int(expire),
     }
+    if tenant_id is not None:
+        payload["tenant_id"] = tenant_id
+    if workspace_id is not None:
+        payload["workspace_id"] = workspace_id
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
@@ -122,6 +128,8 @@ def get_current_user(
             "role": user.role,
             "full_name": user.full_name,
             "is_active": user.is_active,
+            "tenant_id": payload.get("tenant_id") or getattr(user, "tenant_id", "default"),
+            "workspace_id": payload.get("workspace_id") or getattr(user, "workspace_id", "default"),
         }
 
 

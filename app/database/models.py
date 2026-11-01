@@ -195,3 +195,36 @@ class AuditLogRecord(Base):
     status = Column(String(32), default="SUCCESS")
     timestamp = Column(Float, default=time.time, nullable=False, index=True)
     details_json = Column(Text, nullable=True)
+
+
+class VectorEmbeddingRecord(Base):
+    """Persistent storage for continuous dense embeddings, metadata, parent-child relations, and multi-tenant isolation."""
+    __tablename__ = "vector_embeddings"
+
+    id = Column(String(64), primary_key=True, index=True)
+    document_id = Column(String(128), index=True, nullable=False)
+    parent_id = Column(String(128), index=True, nullable=True)
+    parent_content = Column(Text, nullable=True)
+    content_hash = Column(String(64), index=True, nullable=True)
+    tenant_id = Column(String(64), index=True, default="default", nullable=False)
+    workspace_id = Column(String(64), index=True, default="default", nullable=False)
+    user_id = Column(String(64), index=True, nullable=True)
+    embedding_model = Column(String(128), nullable=False)
+    embedding_version = Column(String(32), default="1.0.0", nullable=False)
+    embedding_dimension = Column(Integer, nullable=False)
+    modality = Column(String(32), default="transcript", nullable=False)
+    source_id = Column(String(128), nullable=True)
+    start_ms = Column(Integer, nullable=True)
+    end_ms = Column(Integer, nullable=True)
+    text = Column(Text, nullable=False)
+    vector_json = Column(Text, nullable=False)
+    metadata_json = Column(Text, default="{}", nullable=False)
+    created_at = Column(Float, default=time.time, nullable=False)
+    updated_at = Column(Float, default=time.time, nullable=False)
+
+    __table_args__ = (
+        Index("idx_vector_tenant_workspace", "tenant_id", "workspace_id"),
+        Index("idx_vector_model_dim", "embedding_model", "embedding_dimension"),
+        Index("idx_vector_parent", "parent_id"),
+        Index("idx_vector_hash", "content_hash"),
+    )

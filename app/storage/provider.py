@@ -30,6 +30,21 @@ class StorageProvider(ABC):
         pass
 
     @abstractmethod
+    def stream(self, key: str, chunk_size: int = 64 * 1024):
+        """Stream stored bytes in bounded chunks without loading whole file into RAM."""
+        pass
+
+    @abstractmethod
+    def get_local_path(self, key: str) -> Optional[Path]:
+        """Return local filesystem path if available, or None for remote-only stores."""
+        pass
+
+    @abstractmethod
+    def get_size(self, key: str) -> int:
+        """Return file size in bytes."""
+        pass
+
+    @abstractmethod
     def exists(self, key: str) -> bool:
         """Check if file exists in storage."""
         pass
@@ -46,7 +61,7 @@ class StorageProvider(ABC):
 
 
 class LocalStorageProvider(StorageProvider):
-    """Local filesystem storage provider with path isolation."""
+    """Local filesystem storage provider with strict path & symlink isolation."""
 
     def __init__(self, base_dir: Optional[str] = None):
         settings = get_settings()
@@ -54,11 +69,28 @@ class LocalStorageProvider(StorageProvider):
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def _resolve(self, key: str) -> Path:
-        # Sanitize key to prevent path traversal
-        clean_key = key.replace("\\", "/").lstrip("/")
-        # Prevent .. traversal
-        parts = [p for p in clean_key.split("/") if p and p != ".."]
+        # Sanitize key and strictly reject path traversal attempts
+        clean_key = str(key).replace("\\", "/")
+        if clean_key.startswith("/") or (len(clean_key) > 1 and clean_key[1] == ":"):
+            raise PermissionError(f"Path traversal detected: '{key}' is an absolute path.")
+
+        parts = [p for p in clean_key.split("/") if p]
+        if any(p == ".." for p in parts) or "/../" in f"/{clean_key}/":
+            raise PermissionError(f"Path traversal detected: '{key}' contains directory traversal sequences.")
+
         target = self.base_dir.joinpath(*parts)
+
+        # Verify strict containment within base_dir (including symlink resolution)
+        resolved_base = self.base_dir.resolve()
+        resolved_target = target.resolve()
+
+        # If target doesn't exist yet, check its resolved parent
+        check_path = resolved_target if target.exists() else resolved_target.parent
+        try:
+            check_path.relative_to(resolved_base)
+        except ValueError:
+            raise PermissionError(f"Path traversal detected: '{key}' attempts to escape storage root.")
+
         target.parent.mkdir(parents=True, exist_ok=True)
         return target
 
@@ -74,23 +106,52 @@ class LocalStorageProvider(StorageProvider):
 
     def read(self, key: str) -> bytes:
         target = self._resolve(key)
-        if not target.exists():
+        if not target.exists() or not target.is_file():
             raise FileNotFoundError(f"File not found in storage: {key}")
         return target.read_bytes()
 
+    def stream(self, key: str, chunk_size: int = 64 * 1024):
+        target = self._resolve(key)
+        if not target.exists() or not target.is_file():
+            raise FileNotFoundError(f"File not found in storage: {key}")
+        with open(target, "rb") as f:
+            while chunk := f.read(chunk_size):
+                yield chunk
+
+    def get_local_path(self, key: str) -> Optional[Path]:
+        try:
+            target = self._resolve(key)
+            if target.exists() and target.is_file():
+                return target
+        except Exception:
+            return None
+        return None
+
+    def get_size(self, key: str) -> int:
+        target = self._resolve(key)
+        if not target.exists() or not target.is_file():
+            raise FileNotFoundError(f"File not found in storage: {key}")
+        return target.stat().st_size
+
     def exists(self, key: str) -> bool:
-        return self._resolve(key).exists()
+        try:
+            target = self._resolve(key)
+            return target.exists() and target.is_file()
+        except Exception:
+            return False
 
     def delete(self, key: str) -> bool:
-        target = self._resolve(key)
-        if target.exists():
-            target.unlink()
-            return True
+        try:
+            target = self._resolve(key)
+            if target.exists():
+                target.unlink()
+                return True
+        except Exception:
+            pass
         return False
 
     def get_url(self, key: str, expiry_seconds: int = 3600) -> str:
-        # For local storage, returns the local file path URI or relative path
-        return f"/api/v1/storage/{key.replace('\\', '/')}"
+        return f"/api/v1/storage/{str(key).replace('\\', '/').lstrip('/')}"
 
 
 class S3StorageProvider(StorageProvider):
@@ -131,6 +192,23 @@ class S3StorageProvider(StorageProvider):
         resp = self._s3_client.get_object(Bucket=self.bucket, Key=key)
         return resp["Body"].read()
 
+    def stream(self, key: str, chunk_size: int = 64 * 1024):
+        if not self._s3_client or not self.bucket:
+            raise RuntimeError("S3 storage is not properly configured.")
+        resp = self._s3_client.get_object(Bucket=self.bucket, Key=key)
+        body = resp["Body"]
+        while chunk := body.read(chunk_size):
+            yield chunk
+
+    def get_local_path(self, key: str) -> Optional[Path]:
+        return None
+
+    def get_size(self, key: str) -> int:
+        if not self._s3_client or not self.bucket:
+            raise RuntimeError("S3 storage is not properly configured.")
+        resp = self._s3_client.head_object(Bucket=self.bucket, Key=key)
+        return int(resp.get("ContentLength", 0))
+
     def exists(self, key: str) -> bool:
         if not self._s3_client or not self.bucket:
             raise RuntimeError("S3 storage is not properly configured.")
@@ -154,7 +232,6 @@ class S3StorageProvider(StorageProvider):
             Params={"Bucket": self.bucket, "Key": key},
             ExpiresIn=expiry_seconds,
         )
-
 
 
 def get_storage_provider() -> StorageProvider:

@@ -1,6 +1,7 @@
 """
-Production RAG engine 2.0: Multi-hop query planning, claim-level grounding,
-answer confidence, abstention, contradiction detection, and citation intervals.
+Production RAG Engine 3.0: Multi-hop query planning, claim-level grounding,
+answer confidence, abstention, contradiction detection, citation intervals,
+and multi-tenant workspace isolation.
 """
 
 from __future__ import annotations
@@ -11,7 +12,14 @@ from pydantic import BaseModel, Field
 
 from app.domain.models import TranscriptSegment
 from app.knowledge.graph import KnowledgeGraph
-from app.retrieval.hybrid_search import EvidencePack, HybridSearchEngine, SearchResultItem
+from app.retrieval.hybrid_search import (
+    EvidencePack,
+    HybridSearchEngine,
+    RetrievalConfidence,
+    RetrievalStrategy,
+    RetrievalTrace,
+    SearchResultItem,
+)
 
 
 class RAGCitation(BaseModel):
@@ -22,6 +30,13 @@ class RAGCitation(BaseModel):
     video_title: str
     snippet: str
     grounding_status: str = "SUPPORTED"  # SUPPORTED, PARTIALLY_SUPPORTED, UNVERIFIED
+    score_breakdown: Dict[str, float] = Field(default_factory=dict)
+    graph_path: List[str] = Field(default_factory=list)
+    parent_id: Optional[str] = None
+    parent_snippet: Optional[str] = None
+    modality: str = "transcript"
+    keyframe_id: Optional[str] = None
+    scene_id: Optional[str] = None
 
 
 class RAGResponse(BaseModel):
@@ -29,20 +44,24 @@ class RAGResponse(BaseModel):
     answer: str
     evidence: str = ""
     confidence: float = 1.0
+    confidence_level: str = "HIGH"  # HIGH, MEDIUM, LOW, INSUFFICIENT
     citations: List[RAGCitation] = Field(default_factory=list)
     limitations: str = ""
     abstention: bool = False
     hallucination_risk: str = "LOW"  # LOW, MODERATE, HIGH
     contradictions_detected: List[str] = Field(default_factory=list)
     retrieved_context_count: int = 0
+    retrieval_trace: Optional[RetrievalTrace] = None
+    reasoning_path: List[str] = Field(default_factory=list)
 
 
 class RAGEngine:
     """
-    Advanced RAG 2.0 pipeline:
-    - Multi-hop retrieval planning
+    Advanced RAG 3.0 pipeline:
+    - Multi-strategy hybrid retrieval (Dense, BM25, Temporal, Entity)
     - Claim-level evidence grounding with verified timestamps
-    - Answer confidence calculation and graceful abstention
+    - Multi-factor retrieval confidence calculation & truthful abstention
+    - Multi-tenant workspace isolation
     - Contradiction detection across source segments
     """
 
@@ -55,6 +74,10 @@ class RAGEngine:
         video_id: Optional[str] = None,
         graph: Optional[KnowledgeGraph] = None,
         llm_caller: Optional[Any] = None,
+        tenant_id: Optional[str] = None,
+        workspace_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+        strategy: RetrievalStrategy = RetrievalStrategy.HYBRID,
     ) -> RAGResponse:
         clean_query = query.strip()
         if not clean_query:
@@ -62,30 +85,38 @@ class RAGEngine:
                 query=query,
                 answer="Please provide a specific technical question regarding the video lecture.",
                 confidence=1.0,
+                confidence_level="HIGH",
                 abstention=True,
             )
 
-        # 1. Retrieve Evidence Pack via Hybrid Retrieval 2.0
+        # 1. Retrieve Evidence Pack via Hybrid Retrieval
         evidence_pack: EvidencePack = self.search_engine.retrieve_evidence_pack(
             query=clean_query,
             k=5,
             video_filter=video_id,
             graph=graph,
+            strategy=strategy,
+            tenant_id=tenant_id,
+            workspace_id=workspace_id,
+            user_id=user_id,
         )
 
         hits = evidence_pack.hits
 
-        # 2. Check for absence of relevant content -> Abstention
-        if not hits:
+        # 2. Check for absence of relevant content or engine abstention
+        if not hits or evidence_pack.abstention:
             return RAGResponse(
                 query=query,
-                answer="No relevant video content or lecture transcripts were found matching your question. Please verify the topic or check available video libraries.",
+                answer="I don't have sufficient verified evidence to answer this. No relevant video content or lecture transcripts were found matching your question. Please verify the topic or check available video libraries.",
                 evidence="",
                 confidence=0.15,
+                confidence_level="INSUFFICIENT",
                 limitations="The topic or terms requested do not appear in any indexed video transcripts.",
                 abstention=True,
                 hallucination_risk="HIGH",
                 retrieved_context_count=0,
+                retrieval_trace=evidence_pack.trace,
+                reasoning_path=[],
             )
 
         # 3. Assemble Citations with Grounding Status Tags
@@ -98,6 +129,7 @@ class RAGEngine:
             else:
                 status = "UNVERIFIED"
 
+            meta = getattr(h, "metadata", {}) or {}
             citations.append(
                 RAGCitation(
                     timestamp_start=h.start_time,
@@ -107,11 +139,17 @@ class RAGEngine:
                     video_title=h.video_title,
                     snippet=h.snippet,
                     grounding_status=status,
+                    score_breakdown=getattr(h, "score_breakdown", {}),
+                    graph_path=getattr(h, "graph_path", []),
+                    parent_id=getattr(h, "parent_id", None),
+                    parent_snippet=getattr(h, "parent_snippet", None),
+                    modality=getattr(h, "modality", "transcript"),
+                    keyframe_id=meta.get("frame_id"),
+                    scene_id=meta.get("scene_id"),
                 )
             )
 
-
-        # 4. Check for Contradictions across retrieved snippets
+        # 4. Check for Contradictions across retrieved snippets and knowledge graph
         contradictions: List[str] = []
         negation_markers = {"not", "never", "cannot", "no longer", "false", "disproven"}
         has_negation = False
@@ -126,23 +164,32 @@ class RAGEngine:
         if has_negation and has_affirmation and len(hits) >= 2:
             contradictions.append("Differing affirmative and negative statements detected across matching segments.")
 
+        if graph and hasattr(graph, "detect_contradictions"):
+            graph_contras = graph.detect_contradictions(tenant_id=tenant_id)
+            for gc in graph_contras:
+                contradictions.append(
+                    f"Graph contradiction: '{gc.get('source_claim', gc.get('source_name', ''))}' vs '{gc.get('target_claim', gc.get('target_name', ''))}'"
+                )
+
         # 5. Grounding & Confidence Estimation
         top_score = hits[0].score
         if top_score >= 1.5:
             confidence = 0.95
             risk = "LOW"
+            level = "HIGH"
         elif top_score >= 0.8:
             confidence = 0.80
             risk = "MODERATE"
+            level = "MEDIUM"
         else:
             confidence = 0.35
             risk = "HIGH"
+            level = "LOW"
 
         # 6. Formulate Synthesized Answer
         lead_citation = citations[0].formatted
         lead_snippet = hits[0].snippet
 
-        # If LLM caller provided, use it; otherwise use deterministic extractive synthesis
         if llm_caller:
             try:
                 prompt = (
@@ -168,15 +215,24 @@ class RAGEngine:
         if confidence < 0.70:
             limitations_note = "Answer is based on partial matching transcript snippets; please verify adjacent lecture context."
 
+        reasoning_path: List[str] = []
+        for h in hits:
+            if getattr(h, "graph_path", None):
+                reasoning_path = h.graph_path
+                break
+
         return RAGResponse(
             query=query,
             answer=answer_text,
             evidence=evidence_pack.compressed_context,
             confidence=confidence,
+            confidence_level=level,
             citations=citations,
             limitations=limitations_note,
             abstention=confidence < 0.25,
             hallucination_risk=risk,
             contradictions_detected=contradictions,
             retrieved_context_count=len(hits),
+            retrieval_trace=evidence_pack.trace,
+            reasoning_path=reasoning_path,
         )

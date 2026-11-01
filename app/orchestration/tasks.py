@@ -214,7 +214,15 @@ def process_video_job(
 
         with temporary_media_workspace() as scratch:
             if source_type == "url":
-                sub_path, info = harvest_youtube_captions(source, scratch)
+                try:
+                    sub_path, info = harvest_youtube_captions(source, scratch)
+                except Exception as sub_exc:
+                    logger.warning(
+                        "Unhandled exception in subtitle harvesting: %s. Gracefully falling back to audio transcription.",
+                        sub_exc,
+                    )
+                    sub_path, info = None, None
+
                 if info:
                     meta_title = title or info.get("title") or meta_title
 
@@ -222,7 +230,14 @@ def process_video_job(
                     _publish(job_id, {"status": "INGESTING", "progress": 15, "message": "Harvested high-fidelity captions"})
                     raw_segments = parse_vtt_or_srt_to_segments(sub_path)
                 else:
-                    _publish(job_id, {"status": "DOWNLOADING", "progress": 12, "message": "Downloading video audio stream"})
+                    _publish(
+                        job_id,
+                        {
+                            "status": "DOWNLOADING",
+                            "progress": 12,
+                            "message": "Subtitles unavailable or rate-limited; downloading video audio stream for ASR",
+                        },
+                    )
                     import yt_dlp
 
                     audio_template = os.path.join(scratch, "audio.%(ext)s")
@@ -243,17 +258,28 @@ def process_video_job(
                         info = ydl.extract_info(source, download=True)
                         meta_title = title or info.get("title") or meta_title
 
-                        video_id = info.get("id")
+                        video_id = info.get("id") if info else None
                         candidates = []
+                        audio_exts = ("*.wav", "*.m4a", "*.webm", "*.opus", "*.mp3", "*.ogg")
                         if video_id:
-                            candidates.extend(Path(scratch).glob(f"*{video_id}*.wav"))
-                        candidates.extend(Path(scratch).glob("*.wav"))
+                            for a_ext in audio_exts:
+                                candidates.extend(Path(scratch).glob(f"*{video_id}*{a_ext}"))
+                        for a_ext in audio_exts:
+                            candidates.extend(Path(scratch).glob(a_ext))
 
                         if not candidates:
-                            raise RuntimeError("Audio extraction produced no WAV file.")
+                            raise RuntimeError("Audio extraction produced no usable audio file.")
 
-                        wav_source = str(candidates[0])
-                        wav = demux_audio_to_wav(wav_source, os.path.join(scratch, "16k.wav"))
+                        audio_source = str(candidates[0])
+                        try:
+                            wav = demux_audio_to_wav(audio_source, os.path.join(scratch, "16k.wav"))
+                        except Exception as demux_err:
+                            logger.warning(
+                                "Audio demux to 16k WAV failed (%s); passing direct audio to transcriber: %s",
+                                demux_err,
+                                audio_source,
+                            )
+                            wav = audio_source
 
                         _publish(job_id, {"status": "TRANSCRIBING", "progress": 30, "message": "Transcribing speech audio"})
                         transcriber = get_transcriber()
@@ -304,14 +330,16 @@ def process_video_job(
 
             # Stage 5: Multimodal Video Intelligence (Keyframe extraction & OCR)
             visual_frames = []
+            scenes = []
             if settings.enable_vision_pipeline and media_video_file and os.path.exists(media_video_file):
                 _publish(job_id, {"status": "ANALYZING_VIDEO", "progress": 50, "message": "Extracting key presentation slides and diagrams"})
                 try:
                     extractor = VideoKeyframeExtractor()
                     frames_dir = os.path.join(output_dir, "keyframes")
-                    visual_frames = extractor.extract_keyframes(media_video_file, frames_dir)
+                    scenes, visual_frames = extractor.extract_scenes_and_keyframes(media_video_file, frames_dir)
                     rich_segments = align_visual_frames_to_transcript(rich_segments, visual_frames)
                     result["artifacts"]["keyframes_count"] = len(visual_frames)
+                    result["artifacts"]["scenes_count"] = len(scenes)
                 except Exception as vf_err:
                     logger.warning(f"Visual pipeline skipped with error: {vf_err}")
 
@@ -366,6 +394,14 @@ def process_video_job(
                 kg.add_concept(c)
             for e in knowledge_bundle["edges"]:
                 kg.add_edge(e)
+            if visual_frames or scenes:
+                kg.integrate_visual_intelligence(
+                    scenes=scenes,
+                    frames=visual_frames,
+                    video_id=job_id,
+                    video_title=meta_title,
+                    user_id=user_id,
+                )
 
             result["knowledge"] = {
                 "concepts_count": len(knowledge_bundle["concepts"]),
@@ -397,6 +433,14 @@ def process_video_job(
             _publish(job_id, {"status": "INDEXING", "progress": 88, "message": "Indexing multimodal transcript into hybrid search vector store"})
             search_engine = HybridSearchEngine()
             search_engine.index_segments(job_id, meta_title, rich_segments)
+            if visual_frames or scenes:
+                search_engine.index_visual_content(
+                    scenes=scenes,
+                    frames=visual_frames,
+                    video_id=job_id,
+                    video_title=meta_title,
+                    user_id=user_id,
+                )
             _record_stage_checkpoint(
                 job_id=job_id,
                 stage="INDEXING",

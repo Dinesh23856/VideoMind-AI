@@ -331,6 +331,7 @@
       <button class="nav-tab active" onclick="switchTab('tab-ingest')">Command Center</button>
       <button class="nav-tab" onclick="switchTab('tab-workspace')">Video Workspace</button>
       <button class="nav-tab" onclick="switchTab('tab-tutor')">AI Tutor</button>
+      <button class="nav-tab" onclick="switchTab('tab-ai-chat')">Unified AI Chat</button>
       <button class="nav-tab" onclick="switchTab('tab-graph')">Knowledge Graph</button>
       <button class="nav-tab" onclick="switchTab('tab-search')">Hybrid Search</button>
     </div>
@@ -465,41 +466,234 @@
       </div>
     </section>
 
-    <!-- TAB 4: KNOWLEDGE GRAPH -->
+    <!-- TAB 4: KNOWLEDGE GRAPH & EVIDENCE GRAPH -->
     <section id="tab-graph" class="tab-content">
       <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1rem;">
           <div>
-            <h2>Extracted Knowledge Graph</h2>
+            <h2>Provenance-Aware Temporal Knowledge Graph & Evidence Graph</h2>
             <p style="color:var(--muted); font-size:0.9rem;">
-              Concepts, formulas, definitions, and prerequisite dependencies.
+              Multi-modal entities, claim verification, temporal intervals, bounded multi-hop traversal, and graph quality validation.
             </p>
           </div>
-          <button class="btn-primary" style="width:140px;" onclick="refreshKnowledgeGraph()">Refresh Graph</button>
-        </div>
-        <div id="graphCanvas" style="min-height:550px; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:1.5rem; overflow-y:auto;">
-          <div style="text-align:center; color:var(--muted); padding-top:150px;">
-            Interactive graph elements will appear here after video processing.
+          <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+            <button class="nav-tab active" id="btnKgSubGraph" onclick="switchGraphSubView('view-kg-canvas')">Graph Elements</button>
+            <button class="nav-tab" id="btnKgSubEvidence" onclick="switchGraphSubView('view-kg-evidence')">Claims & Evidence</button>
+            <button class="nav-tab" id="btnKgSubTemporal" onclick="switchGraphSubView('view-kg-temporal')">Temporal Reasoning</button>
+            <button class="nav-tab" id="btnKgSubTraversal" onclick="switchGraphSubView('view-kg-traversal')">Multi-Hop Traversal</button>
+            <button class="nav-tab" id="btnKgSubHealth" onclick="switchGraphSubView('view-kg-health')">Graph Health</button>
+            <button class="btn-primary" style="width:130px; margin-left:0.5rem;" onclick="refreshKnowledgeGraph()">Refresh</button>
           </div>
         </div>
+
+        <!-- Subview 1: Graph Canvas / Nodes Grid -->
+        <div id="view-kg-canvas" class="kg-subview">
+          <div id="graphCanvas" style="min-height:550px; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:1.5rem; overflow-y:auto;">
+            <div style="text-align:center; color:var(--muted); padding-top:150px;">
+              Interactive graph elements will appear here after video processing or node registration.
+            </div>
+          </div>
+        </div>
+
+        <!-- Subview 2: Claims & Evidence -->
+        <div id="view-kg-evidence" class="kg-subview" style="display:none;">
+          <div style="display:flex; gap:0.75rem; margin-bottom:1rem;">
+            <input type="text" id="kgClaimInput" placeholder="Enter claim ID to inspect verification status and evidence chain..." style="margin-bottom:0;" onkeydown="if(event.key==='Enter') inspectClaimEvidence()" />
+            <button class="btn-primary" style="width:160px;" onclick="inspectClaimEvidence()">Verify Claim</button>
+          </div>
+          <div id="kgEvidenceResults" style="min-height:480px; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:1.5rem; overflow-y:auto;">
+            <div style="text-align:center; color:var(--muted); padding-top:150px;">
+              Enter a claim ID or run verification to inspect supporting snippets, contradictions, and net support score.
+            </div>
+          </div>
+        </div>
+
+        <!-- Subview 3: Temporal Reasoning -->
+        <div id="view-kg-temporal" class="kg-subview" style="display:none;">
+          <div style="display:grid; grid-template-columns: 200px 1fr 120px 150px; gap:0.75rem; margin-bottom:1rem;">
+            <select id="kgTemporalQueryType" style="margin-bottom:0;">
+              <option value="before" selected>Discussed Before</option>
+              <option value="after">Discussed After</option>
+              <option value="between">Between Interval</option>
+              <option value="examples_after_definition">Examples After Definition</option>
+              <option value="relation">Allen Interval Relation</option>
+            </select>
+            <input type="text" id="kgTemporalTarget" placeholder="Target concept name, node ID, or timestamp in seconds..." style="margin-bottom:0;" />
+            <input type="text" id="kgTemporalTargetB" placeholder="Target B (relation)..." style="margin-bottom:0;" />
+            <button class="btn-primary" style="width:100%;" onclick="runTemporalGraphQuery()">Query Timeline</button>
+          </div>
+          <div id="kgTemporalResults" style="min-height:480px; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:1.5rem; overflow-y:auto;">
+            <div style="text-align:center; color:var(--muted); padding-top:150px;">
+              Select query type and execute temporal reasoning across lecture intervals.
+            </div>
+          </div>
+        </div>
+
+        <!-- Subview 4: Multi-Hop Traversal -->
+        <div id="view-kg-traversal" class="kg-subview" style="display:none;">
+          <div style="display:grid; grid-template-columns: 1fr 120px 120px 140px; gap:0.75rem; margin-bottom:1rem;">
+            <input type="text" id="kgTraverseStart" placeholder="Start Node ID (e.g. concept or entity)..." style="margin-bottom:0;" />
+            <select id="kgTraverseHops" style="margin-bottom:0;">
+              <option value="1">1 Hop</option>
+              <option value="2" selected>2 Hops</option>
+              <option value="3">3 Hops</option>
+            </select>
+            <select id="kgTraverseDirection" style="margin-bottom:0;">
+              <option value="both" selected>Both</option>
+              <option value="outgoing">Outgoing</option>
+              <option value="incoming">Incoming</option>
+            </select>
+            <button class="btn-primary" style="width:100%;" onclick="runGraphTraversalUI()">Traverse Graph</button>
+          </div>
+          <div id="kgTraversalResults" style="min-height:480px; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:1.5rem; overflow-y:auto;">
+            <div style="text-align:center; color:var(--muted); padding-top:150px;">
+              Execute bounded multi-hop traversal to explore relationships, causal chains, and prerequisite trees.
+            </div>
+          </div>
+        </div>
+
+        <!-- Subview 5: Graph Health & Quality -->
+        <div id="view-kg-health" class="kg-subview" style="display:none;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem;">
+            <span style="font-weight:600; color:var(--text);">Graph Quality Control & Integrity Audit</span>
+            <button class="btn-primary" style="width:160px; background:var(--surface-elevated); border:1px solid var(--border);" onclick="checkGraphHealthUI()">Run Integrity Check</button>
+          </div>
+          <div id="kgHealthResults" style="min-height:480px; background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:1.5rem; overflow-y:auto;">
+            <div style="text-align:center; color:var(--muted); padding-top:150px;">
+              Click 'Run Integrity Check' to validate dangling edges, orphan nodes, duplicate relations, and cross-tenant isolation.
+            </div>
+          </div>
+        </div>
+
       </div>
     </section>
 
 
-    <!-- TAB 5: HYBRID SEARCH -->
+    <!-- TAB 5: HYBRID SEARCH & RAG ENGINE -->
     <section id="tab-search" class="tab-content">
       <div class="card">
-        <h2>Hybrid Search Engine</h2>
-        <p style="color:var(--muted); font-size:0.9rem; margin-bottom:1rem;">
-          Reciprocal Rank Fusion across BM25 exact keywords, dense vector embeddings, and concept nodes.
-        </p>
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem; margin-bottom:1rem;">
+          <div>
+            <h2>Multi-Vector Hybrid RAG & Knowledge Search</h2>
+            <p style="color:var(--muted); font-size:0.9rem;">
+              Dense continuous embeddings + BM25 lexical term matching + temporal video proximity + CrossEncoder reranking.
+            </p>
+          </div>
+          <div style="display:flex; gap:0.5rem; align-items:center;">
+            <span class="stage-pill active" id="ragStatusPill">RAG ENGINE: READY</span>
+          </div>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 180px 160px; gap:0.75rem; margin-bottom:1rem;">
+          <input type="text" id="searchInput" placeholder="Search concepts, code, formulas, or timestamps (e.g. 'at 02:30')..." style="margin-bottom:0;" onkeydown="if(event.key==='Enter') runSearch()" />
+          <select id="searchStrategySelect" style="margin-bottom:0;">
+            <option value="hybrid" selected>Hybrid (RRF)</option>
+            <option value="semantic">Dense Semantic</option>
+            <option value="bm25">BM25 Lexical</option>
+            <option value="temporal">Temporal Video</option>
+            <option value="multimodal">Multimodal</option>
+            <option value="entity">Entity / Graph</option>
+          </select>
+          <select id="searchModalitySelect" style="margin-bottom:0;">
+            <option value="" selected>All Modalities</option>
+            <option value="transcript">Transcripts</option>
+            <option value="keyframe">Visual Frames</option>
+            <option value="ocr">Screen / OCR</option>
+            <option value="document">Documents</option>
+            <option value="code">Code</option>
+            <option value="audio_event">Audio Events</option>
+          </select>
+        </div>
+
         <div style="display:flex; gap:0.75rem; margin-bottom:1.5rem;">
-          <input type="text" id="searchInput" placeholder="Search concepts, code, formulas, or spoken explanations..." style="margin-bottom:0;" onkeydown="if(event.key==='Enter') runSearch()" />
-          <button class="btn-primary" style="width:120px;" onclick="runSearch()">Search</button>
+          <button class="btn-primary" style="width:160px;" onclick="runSearch()">Search Knowledge</button>
+          <button class="btn-primary" style="width:160px; background:var(--surface-elevated); border:1px solid var(--accent); color:var(--accent);" onclick="runRAGQuery()">Ask RAG Engine</button>
+        </div>
+
+        <!-- RAG Answer & Trace Container -->
+        <div id="ragAnswerBox" style="display:none; margin-bottom:1.5rem; padding:1.25rem; background:rgba(88,166,255,0.08); border:1px solid var(--accent); border-radius:8px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+            <strong style="color:var(--accent); font-size:1rem;">Grounding Synthesis (RAG 3.0)</strong>
+            <span id="ragConfidenceBadge" class="brand-badge" style="background:rgba(63,185,80,0.2); color:var(--success);">CONFIDENCE: HIGH</span>
+          </div>
+          <div id="ragAnswerText" style="line-height:1.6; font-size:0.95rem; margin-bottom:1rem;"></div>
+          <details id="ragTraceDetails" style="font-size:0.85rem; color:var(--muted); border-top:1px solid var(--border); padding-top:0.75rem; cursor:pointer;">
+            <summary style="font-weight:600; color:var(--text);">View Retrieval Trace & Provenance</summary>
+            <div id="ragTraceContent" style="margin-top:0.75rem; font-family:monospace; white-space:pre-wrap; background:var(--bg); padding:0.75rem; border-radius:6px;"></div>
+          </details>
         </div>
 
         <div id="searchResults" style="display:flex; flex-direction:column; gap:1rem;">
-          <div style="color:var(--muted); text-align:center; padding:2rem;">Enter a query above to search through indexed video lectures.</div>
+          <div style="color:var(--muted); text-align:center; padding:2rem;">Enter a query above to search through indexed video lectures and multimodal knowledge.</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 6: UNIFIED AI CHAT -->
+    <section id="tab-ai-chat" class="tab-content">
+      <div class="card" style="margin-bottom:1rem; padding:1rem 1.5rem; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:1rem;">
+        <div style="display:flex; align-items:center; gap:0.75rem;">
+          <h2 style="font-size:1.2rem; margin:0;">Unified Multimodal AI Gateway</h2>
+          <span id="aiStatusBadge" class="brand-badge" style="background:rgba(63,185,80,0.15); color:var(--success);">READY</span>
+        </div>
+        <div id="aiGatewayInfo" style="display:flex; gap:0.75rem; font-size:0.8rem; color:var(--muted); flex-wrap:wrap;">
+          <span>Provider: <strong id="aiActiveProvider" style="color:var(--text);">-</strong></span>
+          <span>Model: <strong id="aiActiveModel" style="color:var(--text);">-</strong></span>
+          <span>Hardware: <strong id="aiHardwareProfile" style="color:var(--text);">-</strong></span>
+          <span>Zero-Cost: <strong style="color:var(--success);">$0 Guaranteed</strong></span>
+        </div>
+      </div>
+
+      <div class="card" style="display:grid; grid-template-columns: 280px 1fr; gap:1.5rem; min-height: 550px;">
+        <!-- Left Sidebar: Controls & Modality -->
+        <div style="border-right:1px solid var(--border); padding-right:1.5rem; display:flex; flex-direction:column; gap:1rem;">
+          <div>
+            <label>Task Type</label>
+            <select id="aiTaskSelect" style="margin-bottom:0.5rem;">
+              <option value="TUTORING" selected>TUTORING (Socratic Reasoning)</option>
+              <option value="SUMMARIZATION">SUMMARIZATION (Key Takeaways)</option>
+              <option value="EXTRACTION">EXTRACTION (Concepts & Entities)</option>
+              <option value="REASONING">REASONING (Deep Analysis)</option>
+              <option value="RESEARCH">RESEARCH (Cross-Document)</option>
+              <option value="CODE_EXPLAIN">CODE_EXPLAIN (Technical Stack)</option>
+              <option value="VISION">VISION (Controlled VLM Check)</option>
+            </select>
+          </div>
+
+          <div>
+            <label>Session Controls</label>
+            <div style="display:flex; flex-direction:column; gap:0.5rem; font-size:0.85rem;">
+              <label style="display:flex; align-items:center; gap:0.5rem; text-transform:none; cursor:pointer;">
+                <input type="checkbox" id="aiStreamCheck" checked style="width:auto; margin:0;"> Enable Streaming
+              </label>
+              <label style="display:flex; align-items:center; gap:0.5rem; text-transform:none; cursor:pointer;">
+                <input type="checkbox" id="aiZeroCostCheck" checked style="width:auto; margin:0;"> Zero-Cost Policy ($0 Spend)
+              </label>
+              <label style="display:flex; align-items:center; gap:0.5rem; text-transform:none; cursor:pointer;">
+                <input type="checkbox" id="aiProvenanceCheck" checked style="width:auto; margin:0;"> Require Provenance Citations
+              </label>
+            </div>
+          </div>
+
+          <div style="margin-top:auto; padding-top:1rem; border-top:1px solid var(--border);">
+            <button class="nav-tab" onclick="clearAIChatFeed()" style="width:100%; border-color:var(--border); text-align:center;">Clear Conversation</button>
+            <button class="nav-tab" onclick="refreshAIGatewayHealth()" style="width:100%; border-color:var(--border); text-align:center; margin-top:0.5rem;">Refresh Runtimes</button>
+          </div>
+        </div>
+
+        <!-- Right: Chat Messages & Input -->
+        <div style="display:flex; flex-direction:column; height:100%; min-height:500px;">
+          <div id="aiChatFeed" class="chat-feed" style="flex:1; max-height:450px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; padding:1rem; background:var(--bg);">
+            <div class="chat-bubble chat-tutor">
+              <strong>VideoMind AI Gateway</strong><br>
+              Unified zero-cost, local-first intelligence engine active. Provider-independent model routing, claim-level provenance, and honest capability verification enabled.
+            </div>
+          </div>
+
+          <div style="display:flex; gap:0.75rem; margin-top:1rem;">
+            <input type="text" id="aiChatInput" placeholder="Ask a question, request lecture synthesis, or analyze concepts..." style="margin-bottom:0;" onkeypress="if(event.key==='Enter') sendUnifiedAIChat();" />
+            <button class="btn-primary" id="aiSendBtn" onclick="sendUnifiedAIChat()" style="width:140px; margin-bottom:0;">Send</button>
+          </div>
         </div>
       </div>
     </section>
@@ -698,11 +892,24 @@
       const q = document.getElementById('searchInput').value.trim();
       if (!q) return;
 
+      const strat = document.getElementById('searchStrategySelect').value;
+      const mod = document.getElementById('searchModalitySelect').value;
       const c = document.getElementById('searchResults');
-      c.innerHTML = '<div style="color:var(--muted); text-align:center;">Searching across all indexed lectures...</div>';
+      c.innerHTML = '<div style="color:var(--muted); text-align:center;">Searching across all indexed lectures and knowledge items...</div>';
+      document.getElementById('ragAnswerBox').style.display = 'none';
 
       try {
-        const res = await fetch(`/api/v1/search?q=${encodeURIComponent(q)}&k=6`);
+        const res = await fetch('/api/v1/rag/search', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: q,
+            strategy: strat,
+            modality: mod || null,
+            video_id: activeJobId || null,
+            top_k: 8,
+          }),
+        });
         const data = await res.json();
         c.innerHTML = '';
         if (!data.results || data.results.length === 0) {
@@ -714,9 +921,9 @@
           const item = document.createElement('div');
           item.className = 'card';
           item.innerHTML = `
-            <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem;">
-              <span style="font-weight:700; color:var(--accent);">${r.video_title}</span>
-              <span style="color:var(--muted); font-size:0.85rem;">${r.timestamp_formatted} &bull; Score: ${r.score}</span>
+            <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem; flex-wrap:wrap; gap:0.5rem;">
+              <span style="font-weight:700; color:var(--accent);">${r.video_title} <span class="stage-pill" style="font-size:0.7rem; margin-left:0.4rem;">${(r.modality || 'transcript').toUpperCase()}</span></span>
+              <span style="color:var(--muted); font-size:0.85rem;">${r.timestamp_formatted} &bull; Score: ${r.score} &bull; <strong style="color:var(--text);">${r.retrieval_method}</strong></span>
             </div>
             <p style="line-height:1.5;">${r.snippet}</p>
           `;
@@ -724,6 +931,65 @@
         });
       } catch (err) {
         c.innerHTML = `<div style="color:var(--danger); text-align:center;">Search error: ${err.message}</div>`;
+      }
+    }
+
+    async function runRAGQuery() {
+      const q = document.getElementById('searchInput').value.trim();
+      if (!q) return;
+
+      const strat = document.getElementById('searchStrategySelect').value;
+      const box = document.getElementById('ragAnswerBox');
+      const ansText = document.getElementById('ragAnswerText');
+      const badge = document.getElementById('ragConfidenceBadge');
+      const trace = document.getElementById('ragTraceContent');
+      box.style.display = 'block';
+      ansText.innerHTML = '<em>Synthesizing grounded answer with citations...</em>';
+
+      try {
+        const res = await fetch('/api/v1/rag/query', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            query: q,
+            strategy: strat,
+            video_id: activeJobId || null,
+            top_k: 5,
+          }),
+        });
+        const data = await res.json();
+
+        // Update confidence badge
+        const conf = data.confidence_level || (data.confidence >= 0.85 ? 'HIGH' : data.confidence >= 0.55 ? 'MEDIUM' : 'LOW');
+        badge.textContent = `CONFIDENCE: ${conf} (${Math.round(data.confidence * 100)}%)`;
+        if (conf === 'HIGH') {
+          badge.style.background = 'rgba(63,185,80,0.2)';
+          badge.style.color = 'var(--success)';
+        } else if (conf === 'MEDIUM') {
+          badge.style.background = 'rgba(210,153,34,0.2)';
+          badge.style.color = 'var(--warning)';
+        } else {
+          badge.style.background = 'rgba(248,81,73,0.2)';
+          badge.style.color = 'var(--danger)';
+        }
+
+        ansText.innerHTML = data.answer.replace(/\n/g, '<br>');
+
+        // Render citations
+        if (data.citations && data.citations.length > 0) {
+          const citesHtml = data.citations.map(c =>
+            `<li style="margin-top:0.35rem;"><code>${c.formatted}</code> <strong>${c.video_title}</strong>: <em>"${c.snippet.substring(0, 120)}..."</em> [${c.grounding_status}]</li>`
+          ).join('');
+          ansText.innerHTML += `<div style="margin-top:1rem; border-top:1px dashed var(--border); padding-top:0.75rem;"><strong style="font-size:0.85rem; color:var(--muted);">Grounded Citations:</strong><ul style="padding-left:1.25rem; font-size:0.85rem;">${citesHtml}</ul></div>`;
+        }
+
+        // Trace
+        trace.textContent = JSON.stringify(data.retrieval_trace || { strategy: strat, hits: data.retrieved_context_count }, null, 2);
+
+        // Also trigger search to display matching hits
+        runSearch();
+      } catch (err) {
+        ansText.innerHTML = `<span style="color:var(--danger);">RAG Query failed: ${err.message}</span>`;
       }
     }
 
@@ -766,47 +1032,462 @@
       }
     }
 
-    async function refreshKnowledgeGraph() {
-      if (!activeJobId) {
-        alert("No active video job loaded yet. Run a pipeline job first.");
-        return;
+    function switchGraphSubView(subviewId) {
+      document.querySelectorAll('.kg-subview').forEach(el => el.style.display = 'none');
+      const target = document.getElementById(subviewId);
+      if (target) target.style.display = 'block';
+
+      ['btnKgSubGraph', 'btnKgSubEvidence', 'btnKgSubTemporal', 'btnKgSubTraversal', 'btnKgSubHealth'].forEach(id => {
+        const btn = document.getElementById(id);
+        if (btn) btn.classList.remove('active');
+      });
+
+      if (subviewId === 'view-kg-canvas') document.getElementById('btnKgSubGraph')?.classList.add('active');
+      if (subviewId === 'view-kg-evidence') {
+        document.getElementById('btnKgSubEvidence')?.classList.add('active');
+        inspectClaimEvidence();
       }
-      renderKnowledgeGraph(activeJobId);
+      if (subviewId === 'view-kg-temporal') document.getElementById('btnKgSubTemporal')?.classList.add('active');
+      if (subviewId === 'view-kg-traversal') document.getElementById('btnKgSubTraversal')?.classList.add('active');
+      if (subviewId === 'view-kg-health') {
+        document.getElementById('btnKgSubHealth')?.classList.add('active');
+        checkGraphHealthUI();
+      }
     }
 
-    async function renderKnowledgeGraph(jobId) {
+    async function refreshKnowledgeGraph() {
       const canvas = document.getElementById('graphCanvas');
-      canvas.innerHTML = '<div style="color:var(--muted); text-align:center; padding-top:100px;">Loading extracted concepts & knowledge graph...</div>';
+      canvas.innerHTML = '<div style="color:var(--muted); text-align:center; padding-top:100px;">Loading knowledge graph...</div>';
       try {
-        const res = await fetch(`/api/v1/knowledge/graph/${encodeURIComponent(jobId)}`);
+        let url = '/api/v1/knowledge/graph';
+        if (activeJobId) {
+          url = `/api/v1/knowledge/graph/${encodeURIComponent(activeJobId)}`;
+        }
+        const res = await fetch(url);
         if (!res.ok) throw new Error("Could not load knowledge graph");
         const kgData = await res.json();
         const elements = kgData.elements || [];
 
         if (elements.length > 0) {
           let html = '<div style="display:flex; flex-direction:column; gap:1.5rem;">';
-          html += `<div><h3 style="margin-bottom:0.75rem; color:var(--accent);">Technical Concepts (${kgData.concepts_count || elements.length})</h3><div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:1rem;">`;
+          html += `<div><h3 style="margin-bottom:0.75rem; color:var(--accent);">Knowledge Elements (${kgData.node_count || kgData.concepts_count || elements.length})</h3><div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(280px, 1fr)); gap:1rem;">`;
           elements.forEach(el => {
             const d = el.data || {};
+            if (d.source && d.target) return; // Skip raw edge in card view
             html += `
               <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1rem;">
                 <div style="display:flex; justify-content:space-between; margin-bottom:0.5rem;">
-                  <strong style="color:var(--text);">${d.label || 'Concept'}</strong>
-                  <span style="background:rgba(88,166,255,0.15); color:var(--accent); padding:0.15rem 0.4rem; border-radius:4px; font-size:0.75rem;">Imp: ${d.importance || 0.8}</span>
+                  <strong style="color:var(--text);">${d.label || d.id || 'Concept'}</strong>
+                  <span style="background:rgba(88,166,255,0.15); color:var(--accent); padding:0.15rem 0.4rem; border-radius:4px; font-size:0.75rem;">${d.node_type || 'CONCEPT'}</span>
                 </div>
-                <p style="font-size:0.85rem; color:var(--muted); line-height:1.4;">${d.definition || 'Key technical concept extracted from lecture.'}</p>
+                <p style="font-size:0.85rem; color:var(--muted); line-height:1.4;">${d.definition || 'Knowledge graph node.'}</p>
+                <div style="margin-top:0.5rem; font-size:0.75rem; color:var(--muted);">ID: <code>${d.id}</code></div>
               </div>
             `;
           });
           html += '</div></div></div>';
           canvas.innerHTML = html;
         } else {
-          canvas.innerHTML = '<div style="text-align:center; color:var(--muted); padding-top:150px;">No concepts found in this lecture artifact.</div>';
+          canvas.innerHTML = '<div style="text-align:center; color:var(--muted); padding-top:150px;">No graph nodes loaded yet. Ingest a video or add nodes via API.</div>';
         }
       } catch (err) {
         canvas.innerHTML = `<div style="text-align:center; color:var(--danger); padding-top:150px;">Failed to render graph: ${err.message}</div>`;
       }
     }
+
+    async function inspectClaimEvidence() {
+      const claimInput = document.getElementById('kgClaimInput');
+      const cid = claimInput ? (claimInput.value.trim() || 'clm_sample') : 'clm_sample';
+      const container = document.getElementById('kgEvidenceResults');
+      if (!container) return;
+      container.innerHTML = '<div style="color:var(--muted); text-align:center; padding-top:100px;">Evaluating evidence chain & contradictions...</div>';
+
+      try {
+        const res = await fetch(`/api/v1/knowledge/evidence/${encodeURIComponent(cid)}`);
+        const data = await res.json();
+
+        if (data.status === 'NOT_AVAILABLE' && !data.supports && !data.contradictions) {
+          container.innerHTML = `<div style="text-align:center; color:var(--muted); padding-top:150px;">Claim '${cid}' not found in active graph. Enter a valid claim ID.</div>`;
+          return;
+        }
+
+        const isVerified = data.status === 'VERIFIED';
+        const isContra = data.status === 'CONTRADICTED';
+        const badgeColor = isVerified ? 'var(--success)' : isContra ? 'var(--danger)' : 'var(--warning)';
+        const badgeBg = isVerified ? 'rgba(63,185,80,0.15)' : isContra ? 'rgba(248,81,73,0.15)' : 'rgba(210,153,34,0.15)';
+
+        let html = `
+          <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1.25rem; margin-bottom:1rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.75rem;">
+              <strong style="font-size:1.1rem; color:var(--text);">${data.claim_text || cid}</strong>
+              <span style="background:${badgeBg}; color:${badgeColor}; padding:0.25rem 0.6rem; border-radius:6px; font-weight:700; font-size:0.85rem;">${data.status}</span>
+            </div>
+            <div style="display:flex; gap:1.5rem; font-size:0.85rem; color:var(--muted); margin-bottom:0.75rem;">
+              <span>Support Score: <strong style="color:var(--text);">${data.support_score}</strong></span>
+              <span>Contradiction Score: <strong style="color:var(--text);">${data.contradiction_score}</strong></span>
+              <span>Epistemic Mode: <strong style="color:var(--accent);">${data.classification || 'REAL'}</strong></span>
+            </div>
+          </div>
+        `;
+
+        if (data.contradictions && data.contradictions.length > 0) {
+          html += `
+            <div style="background:rgba(248,81,73,0.08); border:1px solid var(--danger); border-radius:8px; padding:1rem; margin-bottom:1rem;">
+              <strong style="color:var(--danger); font-size:0.9rem;">⚠️ Detected Contradictions:</strong>
+              <ul style="padding-left:1.25rem; font-size:0.85rem; margin-top:0.5rem;">
+                ${data.contradictions.map(c => `<li><strong>${c.evidence_id}:</strong> "${c.content}" <em>[Confidence: ${c.confidence}]</em></li>`).join('')}
+              </ul>
+            </div>
+          `;
+        }
+
+        if (data.supports && data.supports.length > 0) {
+          html += `
+            <div style="background:rgba(63,185,80,0.08); border:1px solid var(--success); border-radius:8px; padding:1rem;">
+              <strong style="color:var(--success); font-size:0.9rem;">Supporting Evidence Spans:</strong>
+              <ul style="padding-left:1.25rem; font-size:0.85rem; margin-top:0.5rem;">
+                ${data.supports.map(s => `<li><strong>${s.evidence_id}:</strong> "${s.content}" <em>[Confidence: ${s.confidence}]</em></li>`).join('')}
+              </ul>
+            </div>
+          `;
+        }
+
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerHTML = `<div style="text-align:center; color:var(--danger); padding-top:150px;">Failed to verify claim: ${err.message}</div>`;
+      }
+    }
+
+    async function runTemporalGraphQuery() {
+      const qType = document.getElementById('kgTemporalQueryType').value;
+      const target = document.getElementById('kgTemporalTarget').value.trim();
+      const targetB = document.getElementById('kgTemporalTargetB').value.trim();
+      const container = document.getElementById('kgTemporalResults');
+      container.innerHTML = '<div style="color:var(--muted); text-align:center; padding-top:100px;">Evaluating interval relations...</div>';
+
+      try {
+        let url = `/api/v1/knowledge/temporal?query_type=${encodeURIComponent(qType)}`;
+        if (target) url += `&target=${encodeURIComponent(target)}`;
+        if (targetB) url += `&target_b=${encodeURIComponent(targetB)}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.relation) {
+          container.innerHTML = `
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1.5rem; text-align:center;">
+              <h3 style="color:var(--accent); margin-bottom:0.5rem;">Allen Interval Relation</h3>
+              <p style="font-size:1.2rem; font-weight:700;"><code>${data.node_a}</code> <span style="color:var(--success);">[ ${data.relation} ]</span> <code>${data.node_b}</code></p>
+            </div>
+          `;
+          return;
+        }
+
+        const list = data.results || [];
+        if (list.length === 0) {
+          container.innerHTML = `<div style="text-align:center; color:var(--muted); padding-top:150px;">No events or concepts found matching temporal condition '${qType}'.</div>`;
+          return;
+        }
+
+        let html = `<div style="display:flex; flex-direction:column; gap:0.75rem;">`;
+        html += `<h4 style="color:var(--accent);">Chronological Query Results (${list.length})</h4>`;
+        list.forEach((n, idx) => {
+          html += `
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:0.75rem 1rem; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <strong style="color:var(--text);">${n.name}</strong>
+                <p style="font-size:0.8rem; color:var(--muted); margin:0.25rem 0 0 0;">${n.definition || 'Concept'}</p>
+              </div>
+              <span style="font-size:0.8rem; color:var(--accent); background:rgba(88,166,255,0.1); padding:0.2rem 0.5rem; border-radius:4px;">
+                ${n.timestamps && n.timestamps.length ? n.timestamps.map(t => t + 's').join(', ') : 'no ts'}
+              </span>
+            </div>
+          `;
+        });
+        html += `</div>`;
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerHTML = `<div style="text-align:center; color:var(--danger); padding-top:150px;">Temporal query error: ${err.message}</div>`;
+      }
+    }
+
+    async function runGraphTraversalUI() {
+      const startId = document.getElementById('kgTraverseStart').value.trim();
+      const hops = parseInt(document.getElementById('kgTraverseHops').value, 10) || 2;
+      const dir = document.getElementById('kgTraverseDirection').value;
+      const container = document.getElementById('kgTraversalResults');
+      if (!startId) {
+        alert("Please enter a Start Node ID");
+        return;
+      }
+      container.innerHTML = '<div style="color:var(--muted); text-align:center; padding-top:100px;">Traversing graph (depth: ' + hops + ')...</div>';
+
+      try {
+        const res = await fetch('/api/v1/knowledge/traverse', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            start_node_id: startId,
+            max_hops: hops,
+            max_nodes: 50,
+            direction: dir,
+          }),
+        });
+        const data = await res.json();
+        const nodes = data.nodes || [];
+        const edges = data.edges || [];
+
+        let html = `
+          <div style="margin-bottom:1rem; display:flex; gap:1.5rem; font-size:0.9rem; color:var(--muted);">
+            <span>Start Node: <strong style="color:var(--accent);">${data.start_node_id}</strong></span>
+            <span>Visited Nodes: <strong style="color:var(--text);">${data.total_nodes}</strong></span>
+            <span>Traversed Edges: <strong style="color:var(--text);">${data.total_edges}</strong></span>
+            <span>Max Depth: <strong style="color:var(--text);">${data.hops_reached}</strong></span>
+          </div>
+        `;
+
+        if (nodes.length > 0) {
+          html += '<h4 style="color:var(--accent); margin-bottom:0.5rem;">Visited Subgraph Nodes</h4>';
+          html += '<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(260px, 1fr)); gap:0.75rem; margin-bottom:1.5rem;">';
+          nodes.forEach(n => {
+            html += `
+              <div style="background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:0.75rem;">
+                <strong>${n.name || n.id}</strong>
+                <p style="font-size:0.8rem; color:var(--muted); margin:0.25rem 0 0 0;">${n.definition ? n.definition.substring(0, 80) + '...' : ''}</p>
+                <div style="font-size:0.75rem; color:var(--accent); margin-top:0.25rem;">ID: <code>${n.id}</code></div>
+              </div>
+            `;
+          });
+          html += '</div>';
+        }
+
+        if (edges.length > 0) {
+          html += '<h4 style="color:var(--accent); margin-bottom:0.5rem;">Traversed Relationships</h4>';
+          html += '<div style="display:flex; flex-direction:column; gap:0.5rem;">';
+          edges.forEach(e => {
+            html += `
+              <div style="background:var(--surface); border:1px solid var(--border); border-radius:6px; padding:0.5rem 0.75rem; font-size:0.85rem;">
+                <code>${e.source_id}</code> &rarr; <span style="color:var(--success); font-weight:600;">[ ${e.relation} ]</span> &rarr; <code>${e.target_id}</code>
+                ${e.description ? `<span style="color:var(--muted); font-size:0.75rem; margin-left:0.5rem;">(${e.description})</span>` : ''}
+              </div>
+            `;
+          });
+          html += '</div>';
+        }
+
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerHTML = `<div style="text-align:center; color:var(--danger); padding-top:150px;">Traversal error: ${err.message}</div>`;
+      }
+    }
+
+    async function checkGraphHealthUI() {
+      const container = document.getElementById('kgHealthResults');
+      container.innerHTML = '<div style="color:var(--muted); text-align:center; padding-top:100px;">Running graph quality checks...</div>';
+      try {
+        const res = await fetch('/api/v1/knowledge/health');
+        const data = await res.json();
+        const v = data.validation || {};
+        const isHealthy = data.status === 'healthy';
+
+        let html = `
+          <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(200px, 1fr)); gap:1rem; margin-bottom:1.5rem;">
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1rem; text-align:center;">
+              <span style="font-size:0.8rem; color:var(--muted);">Integrity Status</span>
+              <h3 style="color:${isHealthy ? 'var(--success)' : 'var(--warning)'}; margin-top:0.35rem;">${data.status.toUpperCase()}</h3>
+            </div>
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1rem; text-align:center;">
+              <span style="font-size:0.8rem; color:var(--muted);">Total Nodes</span>
+              <h3 style="color:var(--text); margin-top:0.35rem;">${v.total_nodes || 0}</h3>
+            </div>
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1rem; text-align:center;">
+              <span style="font-size:0.8rem; color:var(--muted);">Total Edges</span>
+              <h3 style="color:var(--text); margin-top:0.35rem;">${v.total_edges || 0}</h3>
+            </div>
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1rem; text-align:center;">
+              <span style="font-size:0.8rem; color:var(--muted);">Dangling Edges</span>
+              <h3 style="color:${v.dangling_edge_count ? 'var(--danger)' : 'var(--success)'}; margin-top:0.35rem;">${v.dangling_edge_count || 0}</h3>
+            </div>
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1rem; text-align:center;">
+              <span style="font-size:0.8rem; color:var(--muted);">Cross-Tenant Leaks</span>
+              <h3 style="color:${v.cross_tenant_leak_count ? 'var(--danger)' : 'var(--success)'}; margin-top:0.35rem;">${v.cross_tenant_leak_count || 0}</h3>
+            </div>
+          </div>
+        `;
+
+        if (v.orphan_node_count > 0) {
+          html += `
+            <div style="background:var(--surface); border:1px solid var(--border); border-radius:8px; padding:1rem; margin-bottom:1rem;">
+              <strong style="color:var(--muted); font-size:0.85rem;">Orphan Nodes (${v.orphan_node_count}):</strong>
+              <div style="font-size:0.8rem; margin-top:0.35rem;"><code>${(v.orphan_nodes || []).join(', ')}</code></div>
+            </div>
+          `;
+        }
+
+        container.innerHTML = html;
+      } catch (err) {
+        container.innerHTML = `<div style="text-align:center; color:var(--danger); padding-top:150px;">Health check error: ${err.message}</div>`;
+      }
+    }
+
+    // =========================================================================
+    // Unified AI Gateway Client
+    // =========================================================================
+    let aiSessionId = 'session_' + Math.random().toString(36).substring(2, 10);
+
+    async function refreshAIGatewayHealth() {
+      try {
+        const res = await fetch('/api/v1/ai/health');
+        if (!res.ok) return;
+        const data = await res.json();
+        document.getElementById('aiActiveProvider').textContent = data.primary_provider || 'offline';
+        document.getElementById('aiActiveModel').textContent = data.default_model || 'deterministic';
+        if (data.hardware) {
+          document.getElementById('aiHardwareProfile').textContent = data.hardware.profile || 'STANDARD';
+        }
+        const badge = document.getElementById('aiStatusBadge');
+        if (data.gateway_status === 'HEALTHY') {
+          badge.textContent = 'ONLINE';
+          badge.style.background = 'rgba(63,185,80,0.15)';
+          badge.style.color = 'var(--success)';
+        }
+      } catch (e) {
+        console.warn('AI Health fetch failed:', e);
+      }
+    }
+
+    function clearAIChatFeed() {
+      const feed = document.getElementById('aiChatFeed');
+      feed.innerHTML = `
+        <div class="chat-bubble chat-tutor">
+          <strong>VideoMind AI Gateway</strong><br>
+          Session history cleared. Ready for next query.
+        </div>
+      `;
+      aiSessionId = 'session_' + Math.random().toString(36).substring(2, 10);
+    }
+
+    async function sendUnifiedAIChat() {
+      const input = document.getElementById('aiChatInput');
+      const text = input.value.trim();
+      if (!text) return;
+
+      const feed = document.getElementById('aiChatFeed');
+      const task = document.getElementById('aiTaskSelect').value;
+      const isStream = document.getElementById('aiStreamCheck').checked;
+      const isZeroCost = document.getElementById('aiZeroCostCheck').checked;
+      const requireProv = document.getElementById('aiProvenanceCheck').checked;
+      const btn = document.getElementById('aiSendBtn');
+
+      // Append user bubble
+      const userBubble = document.createElement('div');
+      userBubble.className = 'chat-bubble chat-user';
+      userBubble.textContent = text;
+      feed.appendChild(userBubble);
+      input.value = '';
+      feed.scrollTop = feed.scrollHeight;
+
+      // Append assistant placeholder
+      const botBubble = document.createElement('div');
+      botBubble.className = 'chat-bubble chat-tutor';
+      botBubble.innerHTML = '<span style="color:var(--muted);">Routing and synthesizing response...</span>';
+      feed.appendChild(botBubble);
+      feed.scrollTop = feed.scrollHeight;
+
+      btn.disabled = true;
+
+      const payload = {
+        prompt: text,
+        task: task,
+        session_id: aiSessionId,
+        stream: isStream,
+        zero_cost_only: isZeroCost,
+        require_provenance: requireProv,
+      };
+
+      try {
+        if (isStream) {
+          const res = await fetch('/api/v1/ai/stream', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) throw new Error('Stream request failed');
+
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let fullText = '';
+          botBubble.innerHTML = '';
+
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+            const chunkText = decoder.decode(value, { stream: true });
+            const lines = chunkText.split('\n');
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const dataStr = line.substring(6).trim();
+                if (dataStr === '[DONE]') break;
+                try {
+                  const parsed = JSON.parse(dataStr);
+                  if (parsed.chunk) {
+                    fullText += parsed.chunk;
+                    botBubble.innerHTML = fullText.replace(/\n/g, '<br>');
+                    feed.scrollTop = feed.scrollHeight;
+                  }
+                } catch (e) {}
+              }
+            }
+          }
+          if (!fullText) {
+            botBubble.textContent = '(Empty response received)';
+          }
+        } else {
+          const res = await fetch('/api/v1/ai/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          if (!res.ok) {
+            const err = await res.json().catch(() => ({}));
+            throw new Error(err.detail || 'Chat request failed');
+          }
+          const data = await res.json();
+
+          let metaHtml = `<div style="display:flex; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.5rem; font-size:0.75rem;">`;
+          metaHtml += `<span class="brand-badge">${data.provider} / ${data.model}</span>`;
+          metaHtml += `<span style="background:rgba(88,166,255,0.1); color:var(--accent); padding:0.15rem 0.4rem; border-radius:4px;">${data.classification}</span>`;
+          metaHtml += `<span style="color:var(--muted);">${Math.round(data.latency_ms)}ms</span>`;
+          if (data.fallback_used) {
+            metaHtml += `<span style="background:rgba(210,153,34,0.2); color:var(--warning); padding:0.15rem 0.4rem; border-radius:4px;">FALLBACK</span>`;
+          }
+          metaHtml += `</div>`;
+
+          let contentHtml = (data.content || '').replace(/\n/g, '<br>');
+
+          // Citations
+          let citHtml = '';
+          if (data.citations && data.citations.length > 0) {
+            citHtml += `<div style="margin-top:0.75rem; padding-top:0.5rem; border-top:1px solid var(--border); font-size:0.8rem; color:var(--muted);"><strong>Verified Provenance Citations:</strong><ul style="padding-left:1.2rem; margin-top:0.35rem;">`;
+            data.citations.forEach(c => {
+              const span = (c.timestamp_start !== null && c.timestamp_end !== null) ? ` (${c.timestamp_start}s - ${c.timestamp_end}s)` : '';
+              citHtml += `<li><strong>[${c.source_type}]</strong> ${c.source_id}${span}: <em>${c.content_snippet}</em></li>`;
+            });
+            citHtml += `</ul></div>`;
+          }
+
+          botBubble.innerHTML = metaHtml + contentHtml + citHtml;
+        }
+      } catch (err) {
+        botBubble.innerHTML = `<span style="color:var(--danger);">Error: ${err.message}</span>`;
+      } finally {
+        btn.disabled = false;
+        feed.scrollTop = feed.scrollHeight;
+      }
+    }
+
+    // Auto-refresh gateway info on initial load
+    setTimeout(refreshAIGatewayHealth, 500);
   </script>
 </body>
 </html>

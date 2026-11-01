@@ -1,5 +1,5 @@
 {
-  "evaluation_timestamp": "2026-10-01T04:57:31Z",
+  "evaluation_timestamp": "2026-10-04T15:57:12Z",
   "overall_quality_score": 100.0,
   "retrieval": {
     "queries_evaluated": 3,
@@ -17,5 +17,20 @@
     "modes_functioning": 8,
     "mode_coverage": 1.0
   },
-  "benchmark_status": "PASSED"
+  "benchmark_status": "PASSED",
+  "evaluation_mode": "local_only",
+  "provider_info": {
+    "provider_requested": "local_only",
+    "provider_attempted": "offline",
+    "failure": null,
+    "selected_provider": "offline",
+    "classification": "FALLBACK",
+    "model": "deterministic-synthesis-v2"
+  },
+  "category_e_generation": {
+    "status": "NOT_AVAILABLE",
+    "reason": "Skipped under mode=local_only: no live neural AI provider active. Deterministic Categories A\u2013D (retrieval, citation, grounding, refusal) completed.",
+    "provider_used": "none",
+    "model_used": "none"
+  }
 }

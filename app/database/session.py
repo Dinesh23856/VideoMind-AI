@@ -25,6 +25,21 @@ engine = create_engine(
     echo=False,
 )
 
+if db_url.startswith("sqlite"):
+    import sqlite3
+    from sqlalchemy import event
+
+    @event.listens_for(engine, "connect")
+    def _load_sqlite_vec_extension(dbapi_connection, connection_record):
+        if isinstance(dbapi_connection, sqlite3.Connection):
+            try:
+                import sqlite_vec
+                dbapi_connection.enable_load_extension(True)
+                sqlite_vec.load(dbapi_connection)
+                dbapi_connection.enable_load_extension(False)
+            except Exception:
+                pass
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
@@ -41,6 +56,7 @@ def get_db() -> Generator[Session, None, None]:
 def init_db() -> None:
     """Create all tables in the configured database."""
     try:
+        import app.database.models  # noqa: F401 - ensure models are registered on Base.metadata
         Base.metadata.create_all(bind=engine)
         logger.info("Database initialized successfully.")
     except Exception as e:

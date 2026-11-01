@@ -11,13 +11,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=None if os.getenv("APP_ENV") == "test" else ".env",
         env_file_encoding="utf-8",
         extra="ignore",
     )
 
     # App
-    app_env: str = "development"
+    app_env: str = Field(default_factory=lambda: os.getenv("APP_ENV", "development"))
     debug: bool = True
     secret_key: str = "change-me"
 
@@ -41,19 +41,27 @@ class Settings(BaseSettings):
     whisper_device: str = "cpu"
     whisper_compute_type: str = "int8"
     whisper_batch_size: int = 8
-    asr_provider: Literal["faster-whisper", "groq", "deepgram", "offline"] = "faster-whisper"
+    asr_provider: Literal["faster-whisper", "groq", "deepgram", "offline"] = Field(
+        default_factory=lambda: "offline" if os.getenv("APP_ENV") == "test" else "faster-whisper"
+    )
     groq_api_key: Optional[str] = None
     deepgram_api_key: Optional[str] = None
 
     # LLM & Local-First Frontier AI
-    llm_provider: Literal["openai", "anthropic", "google", "groq", "ollama", "local", "offline"] = "openai"
+    llm_provider: Literal["openai", "anthropic", "google", "groq", "ollama", "local", "llama_cpp", "transformers", "grok", "offline"] = Field(
+        default_factory=lambda: "offline" if os.getenv("APP_ENV") == "test" else "openai"
+    )
     openai_api_key: Optional[str] = None
     anthropic_api_key: Optional[str] = None
     google_api_key: Optional[str] = None
+    grok_api_key: Optional[str] = None
+    xai_api_key: Optional[str] = None
     llm_model: str = "gpt-4o"
     llm_max_tokens: int = 8192
     ollama_base_url: str = "http://localhost:11434"
     ollama_model: str = "llama3.2"
+    llama_cpp_base_url: str = "http://localhost:8080"
+    transformers_server_url: Optional[str] = None
     local_llm_url: Optional[str] = None
     zero_cost_mode: bool = True
 
@@ -94,6 +102,44 @@ class Settings(BaseSettings):
     def normalize_llm_provider(cls, v: Any) -> str:
         if isinstance(v, str):
             return v.strip().lower()
+        return v
+
+    @field_validator("jwt_secret_key")
+    @classmethod
+    def validate_jwt_secret(cls, v: str, info) -> str:
+        unsafe_defaults = {
+            "videomind-jwt-secret-key-change-in-production",
+            "videomind-secret-key-change-in-production",
+            "change-me",
+            "secret",
+            "jwt-secret",
+            "default",
+            "password",
+            "123456",
+        }
+        # In production environments, refuse to start with a known unsafe/default secret
+        env = (info.data.get("app_env") if info.data else None) or os.getenv("APP_ENV", "development")
+        env = str(env).strip().lower()
+        if env in ("production", "prod"):
+            if not v or v in unsafe_defaults or len(v) < 32:
+                raise ValueError(
+                    "CRITICAL SECURITY CONFIGURATION ERROR: In production mode ('production'), "
+                    "'jwt_secret_key' must be configured with a cryptographically strong secret "
+                    "of at least 32 characters. Default/unsafe secrets are strictly blocked."
+                )
+        return v
+
+    @field_validator("secret_key")
+    @classmethod
+    def validate_secret_key(cls, v: str, info) -> str:
+        env = (info.data.get("app_env") if info.data else None) or os.getenv("APP_ENV", "development")
+        env = str(env).strip().lower()
+        if env in ("production", "prod"):
+            if not v or v in ("change-me", "default", "secret") or len(v) < 16:
+                raise ValueError(
+                    "CRITICAL SECURITY CONFIGURATION ERROR: In production mode ('production'), "
+                    "'secret_key' must be configured with a secure key (at least 16 characters)."
+                )
         return v
 
 

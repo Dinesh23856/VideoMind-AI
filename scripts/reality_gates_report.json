@@ -1,7 +1,7 @@
 {
-  "timestamp": "2026-10-01T04:57:11Z",
+  "timestamp": "2026-10-04T15:55:25Z",
   "status": "PASS",
-  "total_duration_seconds": 7.825,
+  "total_duration_seconds": 23.11,
   "gates_evaluated": 16,
   "gates_passed": 16,
   "gates_failed": 0,
@@ -10,56 +10,56 @@
       "gate": 1,
       "name": "Core Imports & Dependency Integrity",
       "status": "PASS",
-      "duration_seconds": 4.609,
+      "duration_seconds": 7.325,
       "details": "Imported core packages successfully: FastAPI 0.141.1, SQLAlchemy 2.1.1"
     },
     {
       "gate": 2,
       "name": "Database Schema & Migration Integrity",
       "status": "PASS",
-      "duration_seconds": 0.481,
-      "details": "Database schema verified: Users=194, Videos=44, Jobs=44, Courses=21"
+      "duration_seconds": 0.913,
+      "details": "Database schema verified: Users=484, Videos=93, Jobs=118, Courses=46"
     },
     {
       "gate": 3,
       "name": "RBAC Authentication & Resource Isolation",
       "status": "PASS",
-      "duration_seconds": 0.46,
+      "duration_seconds": 1.034,
       "details": "RBAC hashing, token lifecycle, cross-user isolation (403), and admin bypass verified."
     },
     {
       "gate": 4,
       "name": "Hybrid RAG Grounding & Refusal Behavior",
       "status": "PASS",
-      "duration_seconds": 0.047,
+      "duration_seconds": 0.148,
       "details": "Verified RAG grounding: Supported query confidence=0.95, Unsupported query confidence=0.15"
     },
     {
       "gate": 5,
       "name": "AI Tutor 8 Modes & Scaffolding Ladder",
       "status": "PASS",
-      "duration_seconds": 0.011,
+      "duration_seconds": 0.022,
       "details": "Verified all 8 pedagogical modes and progressive hint generation."
     },
     {
       "gate": 6,
       "name": "Multimodal Exporters & Document Integrity",
       "status": "PASS",
-      "duration_seconds": 0.205,
+      "duration_seconds": 1.895,
       "details": "Verified OpenXML .docx (36648 bytes), Markdown, and WebVTT exports."
     },
     {
       "gate": 7,
       "name": "Storage Traversal Security & Provider Fail-Fast",
       "status": "PASS",
-      "duration_seconds": 0.015,
+      "duration_seconds": 0.028,
       "details": "Storage CRUD, directory traversal containment, and S3 fail-fast guard verified."
     },
     {
       "gate": 8,
       "name": "Live API Contract & Route Integrity",
       "status": "PASS",
-      "duration_seconds": 1.936,
+      "duration_seconds": 11.661,
       "details": "Probed live FastAPI routes: /health, /ready, /metrics, and SPA direct refresh (/dashboard)."
     },
     {
@@ -73,7 +73,7 @@
       "gate": 10,
       "name": "Multi-Video Collections & Knowledge Reasoning",
       "status": "PASS",
-      "duration_seconds": 0.0,
+      "duration_seconds": 0.002,
       "details": "Verified Multi-Video Reasoning, Prerequisite DAG, and Curriculum Synthesis (1 topics)."
     },
     {
@@ -87,35 +87,35 @@
       "gate": 12,
       "name": "Code & Math Intelligence & GDPR Data Governance",
       "status": "PASS",
-      "duration_seconds": 0.003,
+      "duration_seconds": 0.002,
       "details": "Verified Code Static Analysis, Mathematical Derivations, Resource Quotas, and GDPR Right-to-Erasure."
     },
     {
       "gate": 13,
       "name": "Multimodal Events & Allen's Interval Algebra",
       "status": "PASS",
-      "duration_seconds": 0.016,
+      "duration_seconds": 0.019,
       "details": "Verified Multimodal Event Stream, Allen's Interval Algebra, and Concept Lifecycle Trajectories."
     },
     {
       "gate": 14,
       "name": "Evidence Graph & Source Trust Calibration",
       "status": "PASS",
-      "duration_seconds": 0.001,
+      "duration_seconds": 0.0,
       "details": "Verified Independent Evidence Graph, Multi-Source Claim Resolution, and Calibrated Source Trust."
     },
     {
       "gate": 15,
       "name": "Knowledge Versioning, DAG Engine & Resilience",
       "status": "PASS",
-      "duration_seconds": 0.037,
+      "duration_seconds": 0.055,
       "details": "Verified Git-like Knowledge Version Control, Pipeline DAG Execution, and Resilience Subsystems."
     },
     {
       "gate": 16,
       "name": "Autonomous Agents, Cross-Media RAG & Privacy",
       "status": "PASS",
-      "duration_seconds": 0.0,
+      "duration_seconds": 0.001,
       "details": "Verified Autonomous Agent Supervisor, Cross-Media Document Grounding, and Privacy Engine."
     }
   ]
